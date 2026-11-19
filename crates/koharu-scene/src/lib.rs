@@ -19,13 +19,14 @@ mod tiles;
 mod values;
 
 pub use change::{Change, Created, History, PageChanges};
-pub use color::{Color, InkChoice, InkSuggestion, Rgba};
+pub use color::{Color, InkChoice, InkNormalization, InkSuggestion, Rgba};
 pub use edit::{Edit, Op};
 pub use error::{Error, Result};
 pub use external::{ArchiveMember, ExternalImage, MAX_SOURCE_BYTES};
 pub use glossary::{
-    AliasSuggestion, GlossaryEntry, GlossaryKind, JAPANESE_HONORIFICS, SourceLine, TermIssue,
-    TermLocation, TextSuggestion, japanese_address, matching_terms, valid_glossary,
+    AliasSuggestion, CandidateDecision, CandidateLine, CandidatePlan, CandidateReview,
+    GlossaryEntry, GlossaryKind, JAPANESE_HONORIFICS, SourceLine, TermIssue, TermLocation,
+    TextSuggestion, TranslationUncertainty, japanese_address, matching_terms, valid_glossary,
 };
 pub use icu_locale_core::LanguageIdentifier;
 pub use ids::{Hash, LayerId, PageId, ProjectId, Ref, Revision, Uuid};

@@ -94,7 +94,7 @@ impl TranslatorConfig {
 /// whatever their form.
 fn system(config: &TranslatorConfig) -> Result<String> {
     let template = formatdoc! {"
-        Translate the manga text in each message into {target}. Each message is a page's texts as a JSON object, numbered in reading order: translate only the values, and never alter the structure or the keys. Each output value must translate only the source text at the same key. Use the other values only to understand the context. Keep incomplete sentences, separate dialogue bubbles, and sound effects in their own values, even when several consecutive values are related. Return a non-empty translation for every input value and output only the translated JSON.",
+        Translate the manga text in each message into {target}. Each message is a page's texts as a JSON object, numbered in reading order: translate only the values, keeping the same keys. Each output value must translate only the source text at the same key. Use the other values only to understand the context. Keep incomplete sentences, separate dialogue bubbles, and sound effects in their own values, even when several consecutive values are related. Return a non-empty translation for every input value and output only the translated JSON.",
         target = name(&config.target)?,
     };
     Ok(match config.instructions.trim() {
@@ -115,6 +115,20 @@ fn target<'de, D: Deserializer<'de>>(deserializer: D) -> Result<LanguageIdentifi
     Ok(target)
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TextAnswer {
+    text: String,
+    reason: Option<String>,
+}
+
+impl From<String> for TextAnswer {
+    fn from(text: String) -> Self {
+        Self { text, reason: None }
+    }
+}
+
+const REVIEW_INSTRUCTION: &str = "If the available context leaves a material ambiguity in meaning, speaker, name, OCR reading, or sound effect, provide your best translation and a concise concrete review reason in the target language. Flag only items that actually need a human decision.";
+
 /// A page's texts, and the page as a JPEG in base 64 when the model sees it.
 struct Page {
     /// Each block and its source's language.
@@ -123,7 +137,7 @@ struct Page {
     image: Option<String>,
     glossary: Vec<GlossaryEntry>,
     effective: Vec<GlossaryEntry>,
-    kept: Vec<(LayerId, LanguageIdentifier, String)>,
+    kept: Vec<(LayerId, LanguageIdentifier, TextAnswer)>,
 }
 
 pub(crate) async fn translate(
@@ -191,8 +205,9 @@ pub(crate) async fn translate(
     else {
         return Err(Stopped.into());
     };
-    let translated: Vec<(LayerId, LanguageIdentifier, String)> = blocks
-        .into_iter()
+    let translated: Vec<_> = blocks
+        .iter()
+        .cloned()
         .zip(translations)
         .map(|((block, source), text)| (block, source, text))
         .chain(kept)
@@ -203,6 +218,15 @@ pub(crate) async fn translate(
                 project.glossary() == glossary,
                 "the project's glossary changed during translation"
             );
+            for ((id, language), source) in blocks.iter().zip(texts) {
+                let Content::Block(block) = &project.layer(*id)?.content else {
+                    anyhow::bail!("translated layer is no longer a text block");
+                };
+                ensure!(
+                    block.source.language == *language && block.source.content.text() == source,
+                    "source text changed during translation"
+                );
+            }
             written(project, translated, &translator, &global)
         })
         .await
@@ -255,7 +279,7 @@ fn page(member: &Member, vision: bool, global: &[GlossaryEntry]) -> Result<Optio
             }
             let language = block.source.language.clone();
             if project.keeps_original(global, id, &text) {
-                kept.push((id, language, text));
+                kept.push((id, language, text.into()));
                 return None;
             }
             Some(((id, language), text))
@@ -297,7 +321,7 @@ fn sight(scan: &image::DynamicImage) -> Result<String> {
 /// is now.
 fn written(
     project: &Project,
-    translated: Vec<(LayerId, LanguageIdentifier, String)>,
+    translated: Vec<(LayerId, LanguageIdentifier, TextAnswer)>,
     config: &TranslatorConfig,
     global: &[GlossaryEntry],
 ) -> Result<Vec<Op>> {
@@ -315,15 +339,33 @@ fn written(
             // redraw it in another hand.
             let source_text = found.source.content.text();
             let preserved = project.keeps_original(global, block, &source_text);
-            let unchanged = text.trim() == source_text.trim() || preserved;
+            let review = text.reason.map(
+                |reason| json!({"source":source_text, "translation":text.text,"reason":reason}),
+            );
+            let text = text.text;
+            let unchanged = (review.is_none() && text.trim() == source_text.trim()) || preserved;
             let placed = (!unchanged).then(|| placement(project, block, target));
             let mark = (unchanged && !preserved)
                 .then(|| crate::resume::unchanged_translation(&source_text, target));
-            Some((block, source, text, placed, mark))
+            Some((block, source, text, placed, mark, review))
         })
         .collect();
     let mut ops = Vec::new();
-    for (block, source, text, placed, mark) in placed {
+    for (block, source, text, placed, mark, review) in placed {
+        if review.is_some()
+            || project
+                .layer(block)?
+                .attributes
+                .get("koharu")
+                .is_some_and(|attrs| attrs.contains_key("translation_review"))
+        {
+            ops.push(Op::SetAttribute {
+                layer: block.into(),
+                namespace: "koharu".into(),
+                key: "translation_review".into(),
+                value: review,
+            });
+        }
         ops.push(Op::SetAttribute {
             layer: block.into(),
             namespace: "koharu".to_owned(),

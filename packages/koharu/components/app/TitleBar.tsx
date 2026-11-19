@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 
 import { AboutDialog } from '@/components/app/AboutDialog'
 import { useMacOS, WindowControls } from '@/components/app/WindowChrome'
+import { NormalizeInkDialog } from '@/components/editor/NormalizeInkDialog'
 import { call, dispatch } from '@/lib/backend'
 import { useCommand, useImportPages, usePage, useProject } from '@/lib/queries'
 import { deleteSelection } from '@/lib/scene'
@@ -31,6 +32,7 @@ import { cn } from '@koharu/ui/lib/utils'
 
 export function TitleBar() {
   const { t } = useTranslation()
+  const [inkOpen, setInkOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
   const macOS = useMacOS()
   const project = useProject().data
@@ -242,6 +244,12 @@ export function TitleBar() {
               >
                 {t('menu.resizeDialogue')}
               </MenubarItem>
+              <MenubarItem
+                disabled={!project || !pages.some((p) => !p.excluded)}
+                onClick={() => setInkOpen(true)}
+              >
+                {t('ink.title')}…
+              </MenubarItem>
               {/* Frees the GPU, as Photoshop's Edit → Purge frees memory. */}
               <MenubarItem onClick={() => dispatch(commands.unload)}>
                 {t('menu.unloadModels')}
@@ -310,6 +318,14 @@ export function TitleBar() {
 
         {!macOS && <WindowControls />}
       </header>
+      {inkOpen && project && (
+        <NormalizeInkDialog
+          key={project.id}
+          project={project.id}
+          pageCount={pages.filter((page) => !page.excluded).length}
+          onClose={() => setInkOpen(false)}
+        />
+      )}
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
     </>
   )

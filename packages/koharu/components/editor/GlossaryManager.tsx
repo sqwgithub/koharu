@@ -5,7 +5,14 @@ import { Check, ExternalLink, Pencil, Plus, Search, Trash2, X } from 'lucide-rea
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { GlossaryEntry, GlossaryKind, TermCandidate, TermLocation } from '@koharu/ipc/protocol'
+import type {
+  CandidateApplication,
+  GlossaryEntry,
+  GlossaryKind,
+  LayerId,
+  TermCandidate,
+  TermLocation,
+} from '@koharu/ipc/protocol'
 import { Button } from '@koharu/ui/components/button'
 import { Input } from '@koharu/ui/components/input'
 import { NativeSelect, NativeSelectOption } from '@koharu/ui/components/native-select'
@@ -24,12 +31,14 @@ export function GlossaryManager({
   onSave,
   onLocation,
   onEditCandidate,
+  onApplyCandidate,
 }: {
   entries: GlossaryEntry[]
   candidates?: TermCandidate[]
   disabled?: boolean
   onSave: (entries: GlossaryEntry[]) => Promise<void>
   onEditCandidate?: (source: string, translation: string, remove: boolean) => Promise<void>
+  onApplyCandidate?: (entry: GlossaryEntry, locations: LayerId[]) => Promise<CandidateApplication>
   onLocation?: (location: TermLocation) => void
 }) {
   const { t } = useTranslation()
@@ -389,6 +398,26 @@ export function GlossaryManager({
                     />
                   )}
                 </div>
+                {onApplyCandidate && (
+                  <ApplyCandidateButton
+                    key={JSON.stringify(active)}
+                    entry={active}
+                    locations={locations}
+                    disabled={
+                      locked ||
+                      !active ||
+                      blocked(active) ||
+                      !(
+                        manual.includes(active.translation) ||
+                        choices.some(
+                          (entry) =>
+                            entry.kind === active.kind && entry.translation === active.translation,
+                        )
+                      )
+                    }
+                    onApply={onApplyCandidate}
+                  />
+                )}
                 {onLocation &&
                   locations.map((location) => {
                     const excluded = active?.excluded_layers?.includes(location.layer)
@@ -421,6 +450,52 @@ export function GlossaryManager({
         </TabsContent>
       )}
     </Tabs>
+  )
+}
+
+function ApplyCandidateButton({
+  entry,
+  locations,
+  disabled,
+  onApply,
+}: {
+  entry?: GlossaryEntry
+  locations: TermLocation[]
+  disabled?: boolean
+  onApply: (entry: GlossaryEntry, locations: LayerId[]) => Promise<CandidateApplication>
+}) {
+  const { t } = useTranslation()
+  const [result, setResult] = useState<CandidateApplication | null>(null)
+  const [applying, setApplying] = useState(false)
+  const excluded = new Set(entry?.excluded_layers)
+  const layers = locations.map((location) => location.layer).filter((id) => !excluded.has(id))
+  return (
+    <div className='mt-2 flex flex-wrap items-center gap-2'>
+      <Button
+        type='button'
+        size='sm'
+        variant='outline'
+        disabled={disabled || applying || !entry || !layers.length}
+        onClick={() => {
+          if (!entry) return
+          setResult(null)
+          setApplying(true)
+          void onApply(entry, layers)
+            .then(setResult)
+            .catch(() => undefined)
+            .finally(() => setApplying(false))
+        }}
+      >
+        {t('glossary.applyToTranslations')}
+      </Button>
+      <span role='status' className='text-xs text-muted-foreground'>
+        {applying
+          ? t('glossary.locating')
+          : result
+            ? t('glossary.applyResult', { updated: result.updated, review: result.review })
+            : t('glossary.locatorModel')}
+      </span>
+    </div>
   )
 }
 

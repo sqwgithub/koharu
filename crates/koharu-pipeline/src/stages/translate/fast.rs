@@ -151,7 +151,9 @@ pub(super) async fn translate(
                 let answers = if cached {
                     texts
                         .iter()
-                        .map(|text| known.expect("cache hits")[text].clone())
+                        .map(|text| {
+                            super::TextAnswer::from(known.expect("cache hits")[text].clone())
+                        })
                         .collect()
                 } else {
                     if model.is_none() {
@@ -227,7 +229,7 @@ fn commit(
     language: &LanguageIdentifier,
     cached: bool,
     batch: &[(String, Vec<Occurrence>)],
-    answers: Vec<String>,
+    answers: Vec<super::TextAnswer>,
 ) -> Result<Vec<LayerId>> {
     let mut session = member.session.lock();
     if member.cancel.is_cancelled() {
@@ -272,7 +274,7 @@ fn commit(
     if cached {
         let current: SfxGlossary = koharu_config::get()?;
         for (source, answer) in &mut accepted {
-            *answer = current
+            answer.text = current
                 .languages
                 .get(&key)
                 .and_then(|entries| entries.get(source))
@@ -284,15 +286,16 @@ fn commit(
         koharu_config::update(|global: &mut SfxGlossary| {
             let entries = global.languages.entry(key).or_default();
             for (source, answer) in &mut accepted {
-                *answer = entries
-                    .entry(source.clone())
-                    .or_insert_with(|| answer.clone())
-                    .clone();
+                if let Some(existing) = entries.get(source) {
+                    *answer = super::TextAnswer::from(existing.clone());
+                } else if answer.reason.is_none() {
+                    entries.insert(source.clone(), answer.text.clone());
+                }
             }
         })?;
     }
     ensure!(
-        accepted.values().all(|v| !v.trim().is_empty()),
+        accepted.values().all(|v| !v.text.trim().is_empty()),
         "empty sound-effect translation"
     );
     let translations = rows
@@ -411,7 +414,7 @@ mod tests {
                 &language,
                 false,
                 &batch,
-                vec!["boom".into()],
+                vec![super::super::TextAnswer::from("boom".to_owned())],
             )
         };
         assert!(apply().is_err());
