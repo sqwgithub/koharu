@@ -555,7 +555,7 @@
   },
   "story": {
     "noText": "此页面上没有文字。",
-    "sfx": "音效",
+    "sfx": "拟声词",
     "title": "故事",
     "translate": "翻译 {{name}}"
   },
