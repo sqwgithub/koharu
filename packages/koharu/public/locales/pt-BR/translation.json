@@ -15,6 +15,8 @@
     "wiki": "Link da LLM Wiki"
   },
   "glossary": {
+    "manualCandidate": "Adicionar tradução",
+    "removeManualCandidate": "Remover a tradução manual “{{text}}”",
     "fastTranslation": "Tradução rápida",
     "fastTranslationDescription": "Traduz onomatopeias repetidas em lotes separados e reutiliza correspondências exatas do glossário global.",
     "sfxGlossary": "Traduções de onomatopeias",

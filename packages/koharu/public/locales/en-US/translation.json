@@ -15,6 +15,8 @@
     "wiki": "LLM Wiki link"
   },
   "glossary": {
+    "manualCandidate": "Add a translation",
+    "removeManualCandidate": "Remove manual translation “{{text}}”",
     "fastTranslation": "Fast translation",
     "fastTranslationDescription": "Translate repeated sound effects in separate batches and reuse exact matches from the global glossary.",
     "sfxGlossary": "Sound-effect translations",

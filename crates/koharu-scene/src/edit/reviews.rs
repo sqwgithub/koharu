@@ -5,6 +5,38 @@ use super::Run;
 use crate::{AliasSuggestion, Error, GlossaryEntry, GlossaryKind, Result, TextSuggestion};
 
 impl Run<'_, '_> {
+    pub(super) fn edit_manual_candidate(
+        &mut self,
+        index: usize,
+        source: &str,
+        translation: &str,
+        remove: bool,
+    ) -> Result<()> {
+        let group = self
+            .project
+            .glossary_candidates()
+            .iter()
+            .find(|group| group.first().is_some_and(|entry| entry.source == source))
+            .ok_or_else(|| Error::invalid(index, "unknown glossary candidate group"))?;
+        let translation = translation.trim();
+        if translation.is_empty() || group.iter().any(|e| e.translation == translation) {
+            return Err(Error::invalid(index, "empty or generated candidate"));
+        }
+        let manual = &mut Arc::make_mut(&mut self.project.suggestion_reviews).manual_candidates;
+        let choices = manual.entry(source.to_owned()).or_default();
+        match (remove, choices.iter().position(|t| t == translation)) {
+            (true, Some(at)) => {
+                choices.remove(at);
+            }
+            (false, None) => choices.push(translation.to_owned()),
+            _ => return Err(Error::invalid(index, "candidate list changed")),
+        }
+        if choices.is_empty() {
+            manual.remove(source);
+        }
+        Ok(())
+    }
+
     pub(super) fn suggest_aliases(
         &mut self,
         index: usize,

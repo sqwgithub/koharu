@@ -594,7 +594,7 @@ export type Op =
  */
 { op: "write_pixels"; layer: Ref; rect: Rect; pixels: number[] } | 
 /**  Add an imported file, stored once by its content hash. */
-{ op: "add_file"; bytes: number[] } | { op: "set_glossary"; previous: GlossaryEntry[]; entries: GlossaryEntry[] } | { op: "set_glossary_candidates"; candidates: GlossaryEntry[][] } | 
+{ op: "add_file"; bytes: number[] } | { op: "set_glossary"; previous: GlossaryEntry[]; entries: GlossaryEntry[] } | { op: "set_glossary_candidates"; candidates: GlossaryEntry[][] } | { op: "edit_manual_candidate"; source: string; translation: string; remove: boolean } | 
 /**  Queue possible readings of names for human confirmation. Cite existing OCR blocks. */
 { op: "suggest_aliases"; suggestions: AliasSuggestion[] } | { op: "resolve_alias"; suggestion: AliasSuggestion; translation: string | null } | { op: "resolve_ink"; suggestion: InkSuggestion; choice: InkChoice } | 
 /**  Queue a proposed correction to the cited block's existing translation for human review. */
@@ -863,6 +863,7 @@ export type Target =
 } }) & { blocks?: never; pages?: never };
 
 export type TermCandidate = {
+	manual: string[],
 	entries: GlossaryEntry[],
 	locations: TermLocation[],
 };
@@ -1070,6 +1071,7 @@ resolveTranslation: (project: ProjectId, suggestion: TextSuggestion, translation
 resolveInk: (project: ProjectId, suggestion: InkSuggestion, choice: InkChoice) => invoke<null>("resolve_ink", { project, suggestion, choice }, { headers: headers() }),
 extractSource: (project: ProjectId) => invoke<RunId[]>("extract_source", { project }, { headers: headers() }),
 saveGlossary: (project: ProjectId, previous: GlossaryEntry[], entries: GlossaryEntry[]) => invoke<null>("save_glossary", { project, previous, entries }, { headers: headers() }),
+editManualCandidate: (project: ProjectId, source: string, translation: string, remove: boolean) => invoke<null>("edit_manual_candidate", { project, source, translation, remove }, { headers: headers() }),
 exportSource: () => invoke<null>("export_source", {  }, { headers: headers() }),
 analyzeGlossary: (project: ProjectId) => invoke<RunId>("analyze_glossary", { project }, { headers: headers() }),
 /** The canvas element's rectangle, in CSS pixels from the window's corner. */

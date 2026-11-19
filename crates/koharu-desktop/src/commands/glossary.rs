@@ -57,6 +57,12 @@ pub fn get_glossary(app: State<'_, Arc<App>>) -> Result<GlossaryView> {
                     })
                     .collect();
                 Some(TermCandidate {
+                    manual: project
+                        .manual_candidates(&first.source)
+                        .iter()
+                        .filter(|text| !entries.iter().any(|e| &e.translation == *text))
+                        .cloned()
+                        .collect(),
                     entries: entries.clone(),
                     locations,
                 })
@@ -144,6 +150,26 @@ pub fn save_glossary(
         ops: vec![Op::SetGlossary { previous, entries }],
     })?;
     Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn edit_manual_candidate(
+    app: State<'_, Arc<App>>,
+    project: ProjectId,
+    source: String,
+    translation: String,
+    remove: bool,
+) -> Result<()> {
+    resolve_review(
+        &app,
+        project,
+        Op::EditManualCandidate {
+            source,
+            translation,
+            remove,
+        },
+    )
 }
 
 #[tauri::command]
@@ -256,6 +282,7 @@ pub async fn export_source(app: State<'_, Arc<App>>, window: Window<CefRuntime>)
 
 #[derive(Serialize, Type)]
 pub struct TermCandidate {
+    manual: Vec<String>,
     entries: Vec<GlossaryEntry>,
     locations: Vec<TermLocation>,
 }
