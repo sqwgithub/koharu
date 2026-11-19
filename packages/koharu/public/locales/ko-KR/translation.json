@@ -30,6 +30,8 @@
     "wiki": "LLM Wiki 링크"
   },
   "glossary": {
+    "applyToTranslations": "기존 번역에 적용",
+    "updatedBlocks": "수정된 텍스트 블록: {{blocks}}개",
     "manualCandidate": "번역어 추가",
     "removeManualCandidate": "직접 입력한 번역어 “{{text}}” 삭제",
     "fastTranslation": "빠른 번역",
@@ -190,6 +192,7 @@
     "opened": "열었을 때",
     "steps": {
       "review_ink": "글자색 확인",
+      "apply_candidate": "기존 번역에 적용",
       "edit_glossary": "용어집 편집",
       "relink_originals": "원본 이미지 다시 연결",
       "add_text": "텍스트 추가",

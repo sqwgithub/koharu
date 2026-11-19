@@ -157,6 +157,41 @@ pub fn save_glossary(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn apply_candidate(
+    app: State<'_, Arc<App>>,
+    project: ProjectId,
+    entry: GlossaryEntry,
+    locations: Vec<koharu_scene::LayerId>,
+) -> Result<usize> {
+    let app = Arc::clone(&app);
+    Ok(
+        tokio::task::spawn_blocking(move || -> anyhow::Result<usize> {
+            let global = koharu_config::get::<PipelineConfig>()?.glossary;
+            let opened = app.project.lock();
+            let mut session = opened
+                .as_ref()
+                .context("no project is open")?
+                .session
+                .lock();
+            anyhow::ensure!(session.id() == project, "the open project changed");
+            let ops = session
+                .project()
+                .apply_candidate(&entry, &locations, &global)?;
+            let count = ops.len();
+            if count > 0 {
+                session.apply(Edit {
+                    label: "apply_candidate".into(),
+                    ops,
+                })?;
+            }
+            Ok(count)
+        })
+        .await??,
+    )
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn edit_manual_candidate(
     app: State<'_, Arc<App>>,
     project: ProjectId,

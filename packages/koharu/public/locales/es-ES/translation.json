@@ -30,6 +30,8 @@
     "wiki": "Enlace a LLM Wiki"
   },
   "glossary": {
+    "applyToTranslations": "Aplicar a las traducciones existentes",
+    "updatedBlocks": "Bloques de texto actualizados: {{blocks}}",
     "manualCandidate": "Añadir traducción",
     "removeManualCandidate": "Eliminar la traducción manual «{{text}}»",
     "fastTranslation": "Traducción rápida",
@@ -190,6 +192,7 @@
     "opened": "Al abrir",
     "steps": {
       "review_ink": "Revisar el color de texto",
+      "apply_candidate": "Aplicar a las traducciones existentes",
       "edit_glossary": "Editar glosario",
       "relink_originals": "Volver a enlazar imágenes originales",
       "add_text": "Añadir texto",

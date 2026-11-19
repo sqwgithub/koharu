@@ -30,6 +30,8 @@
     "wiki": "رابط LLM Wiki"
   },
   "glossary": {
+    "applyToTranslations": "تطبيق على الترجمات الحالية",
+    "updatedBlocks": "عدد كتل النص المحدَّثة: {{blocks}}",
     "manualCandidate": "إضافة ترجمة",
     "removeManualCandidate": "إزالة الترجمة اليدوية «{{text}}»",
     "fastTranslation": "الترجمة السريعة",
@@ -190,6 +192,7 @@
     "opened": "عند الفتح",
     "steps": {
       "review_ink": "مراجعة لون النص",
+      "apply_candidate": "تطبيق على الترجمات الحالية",
       "edit_glossary": "تحرير المسرد",
       "relink_originals": "إعادة ربط الصور الأصلية",
       "add_text": "إضافة نص",

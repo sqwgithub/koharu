@@ -30,6 +30,8 @@
     "wiki": "LLM Wiki 链接"
   },
   "glossary": {
+    "applyToTranslations": "应用到已有译文",
+    "updatedBlocks": "已更新 {{blocks}} 个文字块",
     "manualCandidate": "手动添加译名",
     "removeManualCandidate": "删除手动译名「{{text}}」",
     "fastTranslation": "快速翻译",
@@ -190,6 +192,7 @@
     "opened": "打开时",
     "steps": {
       "review_ink": "确认字色",
+      "apply_candidate": "应用到已有译文",
       "edit_glossary": "编辑术语表",
       "relink_originals": "重新定位原图",
       "add_text": "添加文字",

@@ -30,6 +30,8 @@
     "wiki": "LLM Wiki link"
   },
   "glossary": {
+    "applyToTranslations": "Apply to existing translations",
+    "updatedBlocks": "Text blocks updated: {{blocks}}",
     "manualCandidate": "Add a translation",
     "removeManualCandidate": "Remove manual translation “{{text}}”",
     "fastTranslation": "Fast translation",
@@ -190,6 +192,7 @@
     "opened": "Opened",
     "steps": {
       "review_ink": "Review ink color",
+      "apply_candidate": "Apply to existing translations",
       "edit_glossary": "Edit glossary",
       "relink_originals": "Relink original images",
       "add_text": "Add text",

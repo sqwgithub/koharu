@@ -30,6 +30,8 @@
     "wiki": "LLM Wiki リンク"
   },
   "glossary": {
+    "applyToTranslations": "既存の訳文に適用",
+    "updatedBlocks": "更新したテキストブロック数：{{blocks}}",
     "manualCandidate": "訳語を追加",
     "removeManualCandidate": "手入力の訳語「{{text}}」を削除",
     "fastTranslation": "高速翻訳",
@@ -190,6 +192,7 @@
     "opened": "開いた状態",
     "steps": {
       "review_ink": "文字色を確認",
+      "apply_candidate": "既存の訳文に適用",
       "edit_glossary": "用語集を編集",
       "relink_originals": "原画像を再リンク",
       "add_text": "テキストを追加",

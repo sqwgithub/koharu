@@ -213,3 +213,132 @@ fn a_blocks_translation_comes_and_goes_with_its_own_ops() {
     let error = apply(&mut session, vec![set(json!(1))]).expect_err("locked");
     assert!(matches!(error, Error::Locked { .. }), "{error}");
 }
+
+#[test]
+fn apply_candidate_preserves_marks_exclusions_and_undo() -> koharu_scene::Result<()> {
+    use koharu_scene::{GlossaryEntry, GlossaryKind};
+    let (_dir, mut session, page) = session();
+    let source = "お兄さん";
+    let add_line = |session: &mut Session, source: &str, translated: serde_json::Value| {
+        add(
+            session,
+            page,
+            None,
+            json!({"kind":"block",
+            "source":{"content": source}, "translation":{"content": translated}}),
+        )
+    };
+    let changed = add_line(
+        &mut session,
+        "お兄さんだ",
+        json!([
+            {"insert":"是","attributes":{"weight":300}},
+            {"insert":"哥","attributes":{"weight":700}},
+            {"insert":"哥"},
+            {"insert":"！","attributes":{"weight":400}},
+        ]),
+    );
+    let excluded = add_line(&mut session, source, json!("哥哥"));
+    let collision = add_line(&mut session, "お兄さんも弟も", json!("哥哥和弟弟"));
+    let already = add_line(&mut session, source, json!("是大哥哥。"));
+    let unknown = add_line(&mut session, source, json!("是家里的老大。"));
+    let ambiguous = add_line(&mut session, source, json!("哥哥还是哥哥？"));
+    let stale = add_line(&mut session, "娘", json!("哥哥"));
+    let manual_name = add_line(&mut session, source, json!("原来是兄长。"));
+    let locked = add_line(&mut session, source, json!("哥哥"));
+    let hidden_page = common::page(&mut session);
+    let on_hidden_page = add(
+        &mut session,
+        hidden_page,
+        None,
+        json!({"kind":"block","source":{"content":source},"translation":{"content":"哥哥"}}),
+    );
+    apply(
+        &mut session,
+        vec![
+            json!({"op":"update_layer","layer":locked,"patch":{"locked":true}}),
+            json!({"op":"set_page_options","page":hidden_page,"excluded":true}),
+        ],
+    )?;
+    let mut current = GlossaryEntry {
+        source: source.into(),
+        translation: "大哥哥".into(),
+        kind: GlossaryKind::Term,
+        note: String::new(),
+        wiki_url: None,
+        excluded_layers: [excluded].into(),
+    };
+    let old = GlossaryEntry {
+        translation: "哥哥".into(),
+        ..current.clone()
+    };
+    let other = GlossaryEntry {
+        source: "弟".into(),
+        ..old.clone()
+    };
+    let ops = session.project().analyzed_glossary(
+        vec![vec![old.clone(), current.clone()]],
+        vec![current.clone(), other.clone()],
+        vec![],
+    );
+    session.apply(common::edit(ops))?;
+    session.apply(common::edit(vec![Op::EditManualCandidate {
+        source: source.into(),
+        translation: "兄长".into(),
+        remove: false,
+    }]))?;
+    let locations = [
+        manual_name,
+        locked,
+        on_hidden_page,
+        changed,
+        changed,
+        excluded,
+        collision,
+        already,
+        unknown,
+        ambiguous,
+        stale,
+    ];
+    let ops = session
+        .project()
+        .apply_candidate(&current, &locations, &[])?;
+    assert_eq!(ops.len(), 2);
+    session.apply(common::edit(ops))?;
+    assert_eq!(text(&session, manual_name).content.text(), "原来是大哥哥。");
+    assert_eq!(
+        marked(&text(&session, changed).content),
+        [("是", Some(300)), ("大哥哥", Some(700)), ("！", Some(400))]
+    );
+    assert!(
+        session
+            .project()
+            .apply_candidate(&current, &locations, &[])?
+            .is_empty()
+    );
+    session.undo()?;
+    assert_eq!(
+        marked(&text(&session, changed).content),
+        [
+            ("是", Some(300)),
+            ("哥", Some(700)),
+            ("哥", None),
+            ("！", Some(400))
+        ]
+    );
+
+    // A generated alternative which contains the new spelling can be shortened.
+    let previous = session.project().glossary().to_vec();
+    current.translation = old.translation;
+    session.apply(common::edit(vec![Op::SetGlossary {
+        previous,
+        entries: vec![current.clone(), other],
+    }]))?;
+    let ops = session
+        .project()
+        .apply_candidate(&current, &[already], &[])?;
+    assert_eq!(ops.len(), 1);
+    session.apply(common::edit(ops))?;
+    assert_eq!(text(&session, already).content.text(), "是哥哥。");
+    Ok(())
+}

@@ -30,6 +30,8 @@
     "wiki": "LLM Wiki bağlantısı"
   },
   "glossary": {
+    "applyToTranslations": "Mevcut çevirilere uygula",
+    "updatedBlocks": "Güncellenen metin bloğu sayısı: {{blocks}}",
     "manualCandidate": "Çeviri ekle",
     "removeManualCandidate": "Elle girilen “{{text}}” çevirisini kaldır",
     "fastTranslation": "Hızlı çeviri",
@@ -190,6 +192,7 @@
     "opened": "Açıldığında",
     "steps": {
       "review_ink": "Metin rengini incele",
+      "apply_candidate": "Mevcut çevirilere uygula",
       "edit_glossary": "Terim sözlüğünü düzenle",
       "relink_originals": "Özgün görselleri yeniden bağla",
       "add_text": "Metin ekle",

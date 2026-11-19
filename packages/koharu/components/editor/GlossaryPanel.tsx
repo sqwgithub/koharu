@@ -205,6 +205,16 @@ export function GlossaryPanel({ project, active }: { project: ProjectId; active:
                   setBusy(false)
                 }
               }}
+              onApplyCandidate={async (entry, locations) => {
+                setBusy(true)
+                try {
+                  const updated = await call(commands.applyCandidate, project, entry, locations)
+                  await refresh(glossaryKey)
+                  return updated
+                } finally {
+                  setBusy(false)
+                }
+              }}
               onSave={save}
               onLocation={(location) => {
                 setManagerOpen(false)

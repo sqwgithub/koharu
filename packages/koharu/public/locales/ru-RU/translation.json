@@ -30,6 +30,8 @@
     "wiki": "Ссылка на LLM Wiki"
   },
   "glossary": {
+    "applyToTranslations": "Применить к готовым переводам",
+    "updatedBlocks": "Обновлено текстовых блоков: {{blocks}}",
     "manualCandidate": "Добавить перевод",
     "removeManualCandidate": "Удалить свой перевод «{{text}}»",
     "fastTranslation": "Быстрый перевод",
@@ -190,6 +192,7 @@
     "opened": "При открытии",
     "steps": {
       "review_ink": "Проверить цвет текста",
+      "apply_candidate": "Применить к готовым переводам",
       "edit_glossary": "Редактировать глоссарий",
       "relink_originals": "Восстановить связи с оригиналами",
       "add_text": "Добавление текста",

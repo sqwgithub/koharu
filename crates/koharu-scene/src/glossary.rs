@@ -71,6 +71,16 @@ pub fn matching_terms<'a>(
     layer: LayerId,
     text: &str,
 ) -> Vec<&'a GlossaryEntry> {
+    term_occurrences(entries, layer, text)
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .map(|index| &entries[index])
+        .collect()
+}
+
+/// Index of the rule owning each unprotected occurrence, in reading order.
+fn term_occurrences(entries: &[GlossaryEntry], layer: LayerId, text: &str) -> Vec<usize> {
     let protected: Vec<_> = entries
         .iter()
         .filter(|entry| entry.kind == GlossaryKind::Preserve && entry.applies_to(layer))
@@ -92,15 +102,15 @@ pub fn matching_terms<'a>(
         })
         .collect();
     matches.sort_unstable_by_key(|&(start, end, _)| (start, std::cmp::Reverse(end)));
-    let mut used = BTreeSet::new();
+    let mut used = Vec::new();
     let mut last = 0;
     for (start, end, index) in matches {
         if start >= last {
-            used.insert(index);
+            used.push(index);
             last = end;
         }
     }
-    used.into_iter().map(|index| &entries[index]).collect()
+    used
 }
 
 pub fn valid_glossary(entries: &[GlossaryEntry]) -> bool {
@@ -321,6 +331,135 @@ impl Project {
             .is_some_and(|entry| {
                 entry.kind == GlossaryKind::PreserveBlock && entry.applies_to(layer)
             })
+    }
+
+    /// Exact, offline replacements in the displayed candidate locations. Each
+    /// op is scoped to one block so the caller can commit the set in one edit.
+    pub fn apply_candidate(
+        &self,
+        entry: &GlossaryEntry,
+        locations: &[LayerId],
+        global: &[GlossaryEntry],
+    ) -> crate::Result<Vec<Op>> {
+        if !entry.is_term() || !self.glossary().contains(entry) {
+            return Err(crate::Error::Rejected(
+                "the selected glossary term changed".into(),
+            ));
+        }
+        let groups: BTreeMap<_, _> = self
+            .glossary_candidates()
+            .iter()
+            .filter_map(|group| Some((group.first()?.source.as_str(), group)))
+            .collect();
+        if !groups.contains_key(entry.source.as_str()) {
+            return Err(crate::Error::Rejected(
+                "the glossary candidate group changed".into(),
+            ));
+        }
+        let spellings = |term: &GlossaryEntry| -> BTreeSet<String> {
+            groups
+                .get(term.source.as_str())
+                .into_iter()
+                .flat_map(|group| group.iter())
+                .filter(|e| e.is_term())
+                .map(|e| e.translation.trim().to_owned())
+                .chain(self.manual_candidates(&term.source).iter().cloned())
+                .chain(std::iter::once(term.translation.trim().to_owned()))
+                .collect()
+        };
+        let names = spellings(entry);
+        let chosen = entry.translation.trim();
+        let effective: Vec<_> = self
+            .effective_glossary(global)
+            .into_iter()
+            .cloned()
+            .collect();
+        let mut ops = Vec::new();
+        for id in locations.iter().copied().collect::<BTreeSet<_>>() {
+            if !entry.applies_to(id) || self.locked_at(id).is_some() {
+                continue;
+            }
+            let Ok(layer) = self.layer(id) else {
+                continue;
+            };
+            let Content::Block(block) = &layer.content else {
+                continue;
+            };
+            let Some(translation) = &block.translation else {
+                continue;
+            };
+            let source = block.source.content.text();
+            if self.parent(id)?.0.excluded || self.keeps_original(global, id, &source) {
+                continue;
+            }
+            let terms = term_occurrences(&effective, id, &source);
+            let count = terms
+                .iter()
+                .filter(|&&i| effective[i].source == entry.source)
+                .count();
+            if count == 0 || count != entry.occurrences(&source).count() {
+                continue;
+            }
+            let mut protected: BTreeSet<_> = effective
+                .iter()
+                .filter(|e| {
+                    e.kind == GlossaryKind::Preserve && e.applies_to(id) && e.matches(&source)
+                })
+                .map(|e| e.source.clone())
+                .collect();
+            for i in terms.into_iter().collect::<BTreeSet<_>>() {
+                if effective[i].source != entry.source {
+                    protected.extend(spellings(&effective[i]));
+                }
+            }
+            let old = translation.content.text();
+            let ranges = |text: &str| {
+                let protected: Vec<_> = protected.iter().flat_map(|s| matches(s, text)).collect();
+                // Prefer the longest spelling starting at each position, including
+                // the active spelling itself (e.g. 哥哥 inside 大哥哥).
+                let mut found: Vec<_> = names.iter().flat_map(|name| matches(name, text)).collect();
+                found.sort_unstable_by_key(|&(a, b)| (a, std::cmp::Reverse(b)));
+                let mut end = 0;
+                let mut occurrences = 0;
+                let mut replacements = Vec::new();
+                for (a, b) in found {
+                    if a < end || protected.iter().any(|&(l, r)| a < r && l < b) {
+                        continue;
+                    }
+                    end = b;
+                    occurrences += 1;
+                    if &text[a..b] != chosen {
+                        replacements.push(a..b);
+                    }
+                }
+                if occurrences > count {
+                    replacements.clear();
+                }
+                replacements
+            };
+            let edits = ranges(&old);
+            if edits.is_empty() {
+                continue;
+            }
+            let mut updated = translation.content.clone();
+            for range in edits.into_iter().rev() {
+                let first = old[range.clone()]
+                    .chars()
+                    .next()
+                    .expect("nonempty candidate");
+                let style = translation.content.marks_at(range.start + first.len_utf8());
+                updated = updated.spliced(range, chosen, &style);
+            }
+            // A replacement can form another old spelling across its boundary.
+            // Such a block is ambiguous and must not change on repeated clicks.
+            if ranges(&updated.text()).is_empty() {
+                ops.push(Op::SetRichText {
+                    layer: id.into(),
+                    spans: updated.0,
+                });
+            }
+        }
+        Ok(ops)
     }
 
     /// Candidate alternatives survive re-analysis and selection. Existing

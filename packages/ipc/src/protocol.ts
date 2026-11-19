@@ -1089,6 +1089,7 @@ resolveInk: (project: ProjectId, suggestion: InkSuggestion, choice: InkChoice) =
 normalizeInk: (project: ProjectId, settings: InkNormalization | null) => invoke<number>("normalize_ink", { project, settings }, { headers: headers() }),
 extractSource: (project: ProjectId) => invoke<RunId[]>("extract_source", { project }, { headers: headers() }),
 saveGlossary: (project: ProjectId, previous: GlossaryEntry[], entries: GlossaryEntry[]) => invoke<null>("save_glossary", { project, previous, entries }, { headers: headers() }),
+applyCandidate: (project: ProjectId, entry: GlossaryEntry, locations: LayerId[]) => invoke<number>("apply_candidate", { project, entry, locations }, { headers: headers() }),
 editManualCandidate: (project: ProjectId, source: string, translation: string, remove: boolean) => invoke<null>("edit_manual_candidate", { project, source, translation, remove }, { headers: headers() }),
 exportSource: () => invoke<null>("export_source", {  }, { headers: headers() }),
 analyzeGlossary: (project: ProjectId) => invoke<RunId>("analyze_glossary", { project }, { headers: headers() }),
