@@ -68,9 +68,6 @@ export function PageRail() {
   const selectPages = useKoharuStore((state) => state.selectPages)
   const selectLayers = useKoharuStore((state) => state.selectLayers)
   const setSettingsOpen = useKoharuStore((state) => state.setSettingsOpen)
-  const running = useKoharuStore((state) =>
-    Object.values(state.jobs).some((job) => job.state === 'running'),
-  )
   const { importPages, importing } = useImportPages()
   const anchor = useRef<number | null>(null)
   // A page being dragged, and the place of the page it's over.
@@ -217,7 +214,6 @@ export function PageRail() {
                         selected={selected.includes(page.id)}
                         dragged={dragged?.page === page.id}
                         target={dragged !== null && dragged.target === index}
-                        running={running}
                         onExclude={(excluded, label) =>
                           void call(commands.edit, {
                             label,
@@ -357,7 +353,6 @@ function PageItem({
   selected,
   dragged,
   target,
-  running,
   onSelect,
   onExclude,
   onRun,
@@ -372,7 +367,6 @@ function PageItem({
   selected: boolean
   dragged: boolean
   target: boolean
-  running: boolean
   onSelect: (additive: boolean, range: boolean) => void
   onExclude: (excluded: boolean, label: string) => void
   onRun: (stage: Stage) => void
@@ -477,7 +471,6 @@ function PageItem({
                 className='size-5 shrink-0'
                 aria-label={exclusionLabel}
                 title={exclusionLabel}
-                disabled={running}
                 onClick={() => onExclude(!page.excluded, exclusionLabel)}
               >
                 <VisibilityIcon className='size-3.5' />

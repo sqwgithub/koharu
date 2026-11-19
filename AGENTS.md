@@ -2,6 +2,8 @@
 
 Koharu is a local-first manga translator: a Rust workspace with a TypeScript interface, shipped as a desktop app. This file holds durable decision rules only. Architecture, file layouts, crate and helper names, model inventories, commands, and anything else a refactor can change belong in crate READMEs and the docs. Normal Rust, TypeScript, testing, formatting, and Git practices are assumed.
 
+When starting a new session, read the [中文项目速览](.agents/README.md) for project context, code entry points, and the current development workflow.
+
 ## Product
 
 - Models run on the user's machine. Pages and text leave it only through a hosted provider the user chose.
