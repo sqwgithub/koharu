@@ -81,16 +81,8 @@ impl Adding<'_> {
             {
                 layer["attributes"]["koharu"]["detection"]["paper"] = json!(paper);
             }
-            self.ops.push(serde_json::from_value(json!({
-                "op": "add_layer",
-                "id": format!("${label}"),
-                "page": self.page,
-                "parent": parent.map(|parent| format!("${parent}")),
-                "index": index,
-                "layer": layer,
-            }))?);
-            if let Part::Lettering(at) = node.part
-                && let Some((rect, pixels)) = grown(
+            let mask = if let Part::Lettering(at) = node.part {
+                grown(
                     &self.layout.lettering[at].mask,
                     self.layout.lettering[at].bbox,
                     // Along its lines: a glyph's size, past either end.
@@ -111,7 +103,22 @@ impl Adding<'_> {
                     self.layout.width,
                     self.layout.height,
                 )
-            {
+            } else {
+                None
+            };
+            if let Some((rect, pixels)) = &mask {
+                layer["attributes"]["koharu"]["automatic_mask"] =
+                    json!(crate::stages::mask_hash(*rect, pixels));
+            }
+            self.ops.push(serde_json::from_value(json!({
+                "op": "add_layer",
+                "id": format!("${label}"),
+                "page": self.page,
+                "parent": parent.map(|parent| format!("${parent}")),
+                "index": index,
+                "layer": layer,
+            }))?);
+            if let Some((rect, pixels)) = mask {
                 self.ops.push(Op::WritePixels {
                     layer: Ref::try_from(format!("${label}.mask")).map_err(anyhow::Error::msg)?,
                     rect,

@@ -59,6 +59,12 @@ Every stage also records its C2PA action on the layers it wrote, and detection
 its scores in its own namespace. Detection records each source's size, line
 width, ink as its fill, and outline as its stroke.
 
+Detection rechecks dark ink left on light balloon paper after masking known
+text boxes. When a large lettering crosses a balloon, its original crop also
+lets the detector separate smaller dialogue from the effect. Recovered text
+uses the same confidence settings, glyph masks, reading order and OCR as the
+first pass.
+
 There's no typesetting stage. Placement puts a translation in its room in its
 balloon, or in its source's frame when it's free or a sound effect, and fits it
 `best`, so resizing a balloon reflows the text.
@@ -80,6 +86,12 @@ balloon, or in its source's frame when it's free or a sound effect, and fits it
 A block's mask reaches 3 pixels past its glyphs, or slivers of letter outlines
 stay outside it, but never into another lettering's box, where its clean-up
 would cover the neighbour's translation.
+
+For recognized dialogue on near-white balloon paper, inpainting checks partly
+covered ink against the detected glyph size, the source frame and nearby masks.
+An isolated stroke supported by the block's automatic mask can extend that
+mask. The fill reads the completed coverage and saves it with the clean-up in
+the same undo step. A detached column of missing text needs detection and OCR.
 
 Most lettering sits on plain paper or a gradient, which a fill rebuilds
 exactly without a model call, so the model comes last. Each lettering's

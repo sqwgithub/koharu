@@ -55,7 +55,13 @@ impl Lettering {
     /// The lettering's typography on `page`, or `None` when its block holds
     /// no ink.
     pub fn typography(&self, page: &RgbImage) -> Option<Typography> {
-        let block = block(&self.mask, page.width(), page.height());
+        self.mask.typography(page)
+    }
+}
+
+impl Mask {
+    pub(super) fn typography(&self, page: &RgbImage) -> Option<Typography> {
+        let block = block(self, page.width(), page.height());
         let (crop, ink, [left, top]) = ink(&block, page, 0, None)?;
         let (width, height) = (block.width, block.height);
         let inside = |x: u32, y: u32| block.pixels[(y * width + x) as usize] != 0;
@@ -383,7 +389,7 @@ pub(super) fn glyph_mask(mask: &Mask, bbox: [f32; 4], page: &RgbImage) -> Mask {
 
 /// Fills what `canvas`'s marked pixels enclose: unmarked areas its edge
 /// can't reach.
-fn fill_holes(canvas: &mut GrayImage) {
+pub(super) fn fill_holes(canvas: &mut GrayImage) {
     let (width, height) = (canvas.width() as usize, canvas.height() as usize);
     if width == 0 || height == 0 {
         return;

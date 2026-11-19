@@ -247,12 +247,6 @@ impl Run {
         } else {
             BTreeSet::new()
         };
-        let keeps_originals = session
-            .lock()
-            .project()
-            .effective_glossary(&config.glossary)
-            .into_iter()
-            .any(|entry| entry.kind == koharu_scene::GlossaryKind::PreserveBlock);
         for (index, (page, blocks)) in plan.pages.into_iter().enumerate() {
             let jobs: BTreeMap<Stage, NodeIndex> = stages
                 .iter()
@@ -288,10 +282,8 @@ impl Run {
                 if let Some(&translate) = jobs.get(&Stage::Translate) {
                     graph.add_edge(recognize, translate, ());
                 }
-                // The whole-block exclusions use the OCR text for that page.
-                if let Some(&inpaint) = jobs.get(&Stage::Inpaint)
-                    && keeps_originals
-                {
+                // Both whole-block exclusions and glyph completion use this page's OCR.
+                if let Some(&inpaint) = jobs.get(&Stage::Inpaint) {
                     graph.add_edge(recognize, inpaint, ());
                 }
             }

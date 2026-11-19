@@ -247,7 +247,7 @@ fn contains(rect: Rect, x: u32, y: u32) -> bool {
 }
 
 /// `rect` grown by `by` on every side, within a `width` by `height` page.
-fn grown(rect: Rect, by: u32, width: u32, height: u32) -> Rect {
+pub(super) fn grown(rect: Rect, by: u32, width: u32, height: u32) -> Rect {
     let x = (i64::from(rect.x) - i64::from(by)).max(0);
     let y = (i64::from(rect.y) - i64::from(by)).max(0);
     let right = (i64::from(rect.x) + i64::from(rect.width) + i64::from(by)).min(i64::from(width));

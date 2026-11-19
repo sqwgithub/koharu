@@ -66,17 +66,24 @@ pub(crate) async fn detect(task: &Task, config: &PipelineConfig) -> anyhow::Resu
         bubble: config.bubble,
         panel: config.panel,
     };
-    let (scan, detected) = task
+    let cancel = member.cancel.clone();
+    let (pixels, detected) = task
         .inference(&[member], move |models| {
             let detector = models.get(&key, |device| model::load(config.model, device))?;
-            let detected = detector.inference(&scan, &options)?;
-            Ok((scan, detected))
+            let mut detected = detector.inference(&scan, &options)?;
+            let pixels = scan.into_rgb8();
+            detected.recover_balloon_text(&pixels, |crop| {
+                if cancel.is_cancelled() {
+                    return Err(super::Stopped.into());
+                }
+                detector.inference(crop, &options)
+            })?;
+            Ok((pixels, detected))
         })
         .await?;
     let page = member.page;
     let name = config.model.to_string();
     let additions = tokio::task::spawn_blocking(move || {
-        let pixels = scan.to_rgb8();
         let layout = {
             let _span = tracing::info_span!("layout").entered();
             detected.layout(&pixels)

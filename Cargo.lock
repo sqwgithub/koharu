@@ -5820,6 +5820,7 @@ version = "0.85.7"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
+ "blake3",
  "bytesize",
  "clap",
  "fs-err",

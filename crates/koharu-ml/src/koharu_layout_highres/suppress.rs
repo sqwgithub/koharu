@@ -180,7 +180,7 @@ fn overlap(left: [f32; 4], right: [f32; 4]) -> (f32, f32) {
     (ratio(left + right - both), ratio(left.min(right)))
 }
 
-fn area(bbox: [f32; 4]) -> f32 {
+pub(super) fn area(bbox: [f32; 4]) -> f32 {
     (bbox[2] - bbox[0]).max(0.0) * (bbox[3] - bbox[1]).max(0.0)
 }
 

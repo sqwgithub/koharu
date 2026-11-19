@@ -12,6 +12,7 @@ mod measure;
 mod model;
 mod order;
 mod processor;
+mod recovery;
 mod rooms;
 mod suppress;
 

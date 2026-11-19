@@ -243,7 +243,7 @@ fn split(items: &[usize], extent: impl Fn(usize) -> (f32, f32)) -> Vec<Vec<usize
 }
 
 /// The share of `inner`'s area inside `outer`.
-fn share(inner: [f32; 4], outer: [f32; 4]) -> f32 {
+pub(super) fn share(inner: [f32; 4], outer: [f32; 4]) -> f32 {
     let overlap = (inner[2].min(outer[2]) - inner[0].max(outer[0])).max(0.0)
         * (inner[3].min(outer[3]) - inner[1].max(outer[1])).max(0.0);
     let area = area(inner);

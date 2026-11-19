@@ -5,6 +5,7 @@
 
 mod flat;
 mod model;
+mod strokes;
 mod telea;
 mod windows;
 
@@ -27,7 +28,7 @@ use self::{
     flat::{Fill, Place, Verdict},
     windows::Region,
 };
-use super::{Member, Task, action, key};
+use super::{Member, Task, action, key, mask_hash};
 use crate::{Area, PipelineConfig, Stage};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -80,6 +81,7 @@ struct Work {
 
 enum Target {
     Blocks {
+        snapshot: Project,
         cleanups: Vec<Cleanup>,
         kept: Vec<LayerId>,
     },
@@ -95,6 +97,8 @@ struct Cleanup {
     old: Tiles,
     rect: Rect,
     mask: GrayImage,
+    refined: Option<LayerId>,
+    mask_origin: Option<serde_json::Value>,
     /// The tier that filled it, or `None` when the model redraws it.
     fill: Option<Fill>,
 }
@@ -163,14 +167,38 @@ pub(crate) async fn inpaint(
     let model = model.to_string();
     member
         .apply(Stage::Inpaint, move |project| match work.target {
-            Target::Blocks { cleanups, kept } => Ok(cleanups
+            Target::Blocks {
+                cleanups,
+                kept,
+                snapshot,
+            } => Ok(cleanups
                 .iter()
                 .filter(|cleanup| {
-                    project.layer(cleanup.block).is_ok_and(|layer| {
-                        matches!(&layer.content, Content::Block(block)
-                            if block.cleanup.id == cleanup.cleanup
-                                && !project.keeps_original(&global, cleanup.block, &block.source.content.text()))
-                    })
+                    let Ok(layer) = project.layer(cleanup.block) else {
+                        return false;
+                    };
+                    let Content::Block(block) = &layer.content else {
+                        return false;
+                    };
+                    let Ok(old) = snapshot.layer(cleanup.block) else {
+                        return false;
+                    };
+                    let Content::Block(before) = &old.content else {
+                        return false;
+                    };
+                    block.cleanup.id == before.cleanup.id
+                        && block.cleanup.content.offset == before.cleanup.content.offset
+                        && !block.cleanup.locked
+                        && block.role == before.role
+                        && block.mask == before.mask
+                        && block.source == before.source
+                        && project.same_pixels(&snapshot, block.mask.id)
+                        && project.same_pixels(&snapshot, block.cleanup.id)
+                        && !project.keeps_original(
+                            &global,
+                            cleanup.block,
+                            &block.source.content.text(),
+                        )
                 })
                 .flat_map(|cleanup| cleaned(cleanup, &work.image, &model, &prompt))
                 .chain(kept.into_iter().filter_map(|id| {
@@ -245,6 +273,21 @@ fn cleaned(cleanup: &Cleanup, image: &RgbImage, model: &str, prompt: &str) -> Ve
         })
         .collect();
     let rect = cleanup.rect;
+    if let Some(id) = cleanup.refined {
+        ops.push(Op::WritePixels {
+            layer: id.into(),
+            rect,
+            pixels: cleanup.mask.as_raw().clone(),
+        });
+    }
+    if let Some(origin) = &cleanup.mask_origin {
+        ops.push(Op::SetAttribute {
+            layer: cleanup.block.into(),
+            namespace: "koharu".into(),
+            key: "automatic_mask".into(),
+            value: Some(origin.clone()),
+        });
+    }
     ops.push(Op::WritePixels {
         layer: cleanup.cleanup.into(),
         rect,
@@ -281,24 +324,90 @@ fn read_blocks(member: &Member, global: &[GlossaryEntry]) -> Result<Option<Work>
     let (width, height) = image.dimensions();
     let mut cleanups = Vec::new();
     let mut kept = Vec::new();
+    let places = places(&project, member.page, width, height);
+    let mut owners = GrayImage::new(width, height);
+    let mut candidates = Vec::new();
     {
         let session = member.session.lock();
-        for (id, block) in member.blocks(&project) {
+        let mut other_masks = Vec::new();
+        for (id, block) in project.blocks(member.page)? {
+            if member
+                .blocks
+                .as_ref()
+                .is_some_and(|only| !only.contains(&id))
+            {
+                other_masks.push(block.mask.id);
+                continue;
+            }
             if project.keeps_original(global, id, &block.source.content.text()) {
                 kept.push(id);
+                other_masks.push(block.mask.id);
                 continue;
             }
             let tiles = session.tiles(block.mask.id, None)?;
-            if let Some((rect, mask)) = tiles.coverage(width, height) {
-                cleanups.push(Cleanup {
-                    block: id,
-                    cleanup: block.cleanup.id,
-                    old: session.tiles(block.cleanup.id, None)?,
-                    rect,
-                    mask,
-                    fill: None,
-                });
+            let Some((rect, mask)) = tiles.coverage(width, height) else {
+                continue;
+            };
+            for (x, y) in masked(rect, &mask) {
+                let count = &mut owners.get_pixel_mut(x, y).0[0];
+                *count = count.saturating_add(1);
             }
+            let old = session.tiles(block.cleanup.id, None)?;
+            let layer = project.layer(id)?;
+            let mut mask_origin = None;
+            if let Some(meta) = layer
+                .attributes
+                .get("koharu")
+                .filter(|m| m.contains_key("detection"))
+            {
+                let automatic = strokes::automatic(layer, &tiles, &old, rect, &mask);
+                // Replacing a cleanup also replaces its alpha. Preserve today's ownership
+                // decision so a second run cannot silently adopt a hand-edited mask.
+                if !meta.contains_key("automatic_mask") {
+                    mask_origin = Some(json!(automatic.then(|| mask_hash(rect, &mask))));
+                }
+                if automatic
+                    && let Some(balloon) = places.get(&id).and_then(|p| p.balloon.as_ref())
+                    && let Some((bounds, em)) = strokes::eligible(layer, block)
+                {
+                    candidates.push((cleanups.len(), block.mask.id, bounds, em, balloon));
+                }
+            }
+            cleanups.push(Cleanup {
+                block: id,
+                cleanup: block.cleanup.id,
+                old,
+                rect,
+                mask,
+                refined: None,
+                mask_origin,
+                fill: None,
+            });
+        }
+        if !candidates.is_empty() {
+            for id in other_masks {
+                if let Some((rect, mask)) = session.tiles(id, None)?.coverage(width, height) {
+                    // An unselected owner precludes borrowing any of its ink.
+                    stamp(&mut owners, rect, &mask);
+                }
+            }
+        }
+    }
+    for (i, id, bounds, em, balloon) in candidates {
+        let cleanup = &mut cleanups[i];
+        if let Some((rect, mask)) = strokes::complete(
+            &image,
+            &owners,
+            cleanup.rect,
+            &cleanup.mask,
+            bounds,
+            em,
+            balloon,
+        ) {
+            cleanup.rect = rect;
+            cleanup.mask_origin = Some(json!(mask_hash(rect, &mask)));
+            cleanup.mask = mask;
+            cleanup.refined = Some(id);
         }
     }
     if cleanups.is_empty() {
@@ -306,14 +415,17 @@ fn read_blocks(member: &Member, global: &[GlossaryEntry]) -> Result<Option<Work>
             image,
             mask: GrayImage::new(width, height),
             regions: Vec::new(),
-            target: Target::Blocks { cleanups, kept },
+            target: Target::Blocks {
+                snapshot: project,
+                cleanups,
+                kept,
+            },
         }));
     }
-    let mut covered = GrayImage::new(width, height);
-    for cleanup in &cleanups {
+    let mut covered = owners;
+    for cleanup in cleanups.iter().filter(|c| c.refined.is_some()) {
         stamp(&mut covered, cleanup.rect, &cleanup.mask);
     }
-    let places = places(&project, member.page, width, height);
     let mut mask = GrayImage::new(width, height);
     let mut regions = Vec::new();
     let _span = tracing::info_span!("fill", letterings = cleanups.len()).entered();
@@ -343,7 +455,11 @@ fn read_blocks(member: &Member, global: &[GlossaryEntry]) -> Result<Option<Work>
         image,
         mask,
         regions,
-        target: Target::Blocks { cleanups, kept },
+        target: Target::Blocks {
+            snapshot: project,
+            cleanups,
+            kept,
+        },
     }))
 }
 
