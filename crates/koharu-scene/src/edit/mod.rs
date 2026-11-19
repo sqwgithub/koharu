@@ -201,6 +201,10 @@ pub enum Op {
     /// Queue possible readings of names for human confirmation. Cite existing OCR blocks.
     SuggestAliases {
         suggestions: Vec<crate::AliasSuggestion>,
+        // Only a completed pipeline analysis owns replacement of earlier evidence.
+        #[serde(skip)]
+        #[specta(skip)]
+        reviewed_pages: std::collections::BTreeSet<PageId>,
     },
     #[schemars(skip)]
     ResolveAlias {
@@ -517,7 +521,10 @@ impl Run<'_, '_> {
                 translation,
                 remove,
             } => self.edit_manual_candidate(index, source, translation, *remove),
-            Op::SuggestAliases { suggestions } => self.suggest_aliases(index, suggestions),
+            Op::SuggestAliases {
+                suggestions,
+                reviewed_pages,
+            } => self.suggest_aliases(index, suggestions, reviewed_pages),
             Op::ResolveAlias {
                 suggestion,
                 translation,

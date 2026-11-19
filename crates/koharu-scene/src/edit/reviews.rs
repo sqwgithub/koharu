@@ -41,7 +41,13 @@ impl Run<'_, '_> {
         &mut self,
         index: usize,
         suggestions: &[AliasSuggestion],
+        reviewed_pages: &std::collections::BTreeSet<crate::PageId>,
     ) -> Result<()> {
+        if !reviewed_pages.is_empty() {
+            Arc::make_mut(&mut self.project.suggestion_reviews)
+                .aliases
+                .retain(|s| !s.locations.iter().all(|l| reviewed_pages.contains(&l.page)));
+        }
         for item in suggestions {
             if !self.project.check_alias_evidence(item) {
                 return Err(Error::invalid(
