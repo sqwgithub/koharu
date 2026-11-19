@@ -1,5 +1,26 @@
 {
+  "ink": {
+    "title": "统一字色",
+    "scope": "范围为已纳入的 {{pages}} 页。默认将接近黑色和白色的译文字色分别改为纯黑和纯白。",
+    "advanced": "详细模式",
+    "blackThreshold": "近黑上限（每个 RGB 通道）",
+    "whiteThreshold": "近白下限（每个 RGB 通道）",
+    "target": "目标颜色",
+    "invalid": "阈值须为 0–255 的整数，近黑上限须小于近白下限。",
+    "restore": "还原系统判断的字色",
+    "apply": "统一字色",
+    "changed": "已修改 {{blocks}} 个文字块",
+    "hidden": "隐藏文字（{{count}}）"
+  },
   "review": {
+    "locationConflict": "定位到的文字未通过替换校验，请结合原句核对译名。",
+    "candidate": "术语替换 · {{source}} → {{expected}}",
+    "currentTranslation": "当前译文",
+    "proposedEdit": "拟替换译文",
+    "saveEdit": "保存修改",
+    "keepTranslation": "保留当前译文",
+    "uncertainTranslation": "模型标记的存疑译文",
+    "confirmTranslation": "确认译文",
     "ink": "待确认的原文字色",
     "inkChoice": {
       "keep": "保留当前色",
@@ -15,6 +36,10 @@
     "wiki": "LLM Wiki 链接"
   },
   "glossary": {
+    "applyToTranslations": "应用到已有译文",
+    "locatorModel": "句中位置由术语分析模型判断。",
+    "locating": "正在定位译名…",
+    "applyResult": "已更新 {{updated}} 个文字块，另有 {{review}} 个文字块需在「建议确认」中复核。",
     "manualCandidate": "手动添加译名",
     "removeManualCandidate": "删除手动译名「{{text}}」",
     "fastTranslation": "快速翻译",
@@ -175,6 +200,7 @@
     "opened": "打开时",
     "steps": {
       "review_ink": "确认字色",
+      "apply_candidate": "应用到已有译文",
       "edit_glossary": "编辑术语表",
       "relink_originals": "重新定位原图",
       "add_text": "添加文字",

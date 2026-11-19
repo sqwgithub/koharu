@@ -14,7 +14,7 @@ use koharu_scene::{GlossaryEntry, GlossaryKind, LayerId};
 use serde_json::{Map, Value, json};
 use tokio_util::sync::CancellationToken;
 
-use super::{Conversation, rules::Rules};
+use super::{Conversation, REVIEW_INSTRUCTION, TextAnswer, rules::Rules};
 
 const PROTECTED_BATCH_LINES: usize = 4;
 const INDEPENDENT_HOSTED_WORKERS: usize = 4;
@@ -64,7 +64,7 @@ impl<'a> Turn<'a> {
         self,
         conversation: Option<&mut Conversation>,
         model: &DynModel<Completion>,
-    ) -> Result<Option<Vec<String>>> {
+    ) -> Result<Option<Vec<TextAnswer>>> {
         let source_keys = keys(self.texts.len());
         let isolated = model.spec().is_some_and(koharu_llm::go_deepseek);
         let protected = self.glossary.iter().any(|entry| {
@@ -143,7 +143,7 @@ impl<'a> Turn<'a> {
                 )),
                 Message::assistant(numbered(
                     &source_keys,
-                    translations.iter().map(String::as_str),
+                    translations.iter().map(|answer| answer.text.as_str()),
                 )),
             ];
             (translations, messages, usage)
@@ -173,7 +173,13 @@ impl<'a> Turn<'a> {
             (translations, remembered(messages), usage)
         };
         conversation.context.record([(messages, usage)]);
-        conversation.last = Some((self.texts.to_vec(), translations.clone()));
+        conversation.last = Some((
+            self.texts.to_vec(),
+            translations
+                .iter()
+                .map(|answer| answer.text.clone())
+                .collect(),
+        ));
         Ok(Some(translations))
     }
 
@@ -182,7 +188,7 @@ impl<'a> Turn<'a> {
         batches: &[Batch<'_>],
         model: &DynModel<Completion>,
         workers: usize,
-    ) -> Result<Option<(Vec<String>, Usage)>> {
+    ) -> Result<Option<(Vec<TextAnswer>, Usage)>> {
         let mut translations = Vec::with_capacity(self.texts.len());
         let mut usage = Usage::default();
         for wave in batches.chunks(workers) {
@@ -208,7 +214,7 @@ impl<'a> Turn<'a> {
         batch: &Batch<'_>,
         model: &DynModel<Completion>,
         mut history: Vec<Message>,
-    ) -> Result<Option<(Vec<String>, Vec<Message>, Usage)>> {
+    ) -> Result<Option<(Vec<TextAnswer>, Vec<Message>, Usage)>> {
         if batch.keys.is_empty() {
             return Ok(Some((
                 batch.rules.restore(&[]),
@@ -232,7 +238,10 @@ impl<'a> Turn<'a> {
         content.push(UserContent::text(batch.input.clone()));
         let prompt = Message::from(content);
         let schema = schema(&batch.keys)?;
-        let mut system = batch.system.clone();
+        let mut system = format!(
+            "{}\n{} For a flagged key only, use an object with two fields, translation and reason, in place of a plain string. For all other keys return a string.",
+            batch.system, REVIEW_INSTRUCTION
+        );
         let mut retry = false;
         loop {
             let request = koharu_llm::answers(model, schema.clone(), self.reasoning)
@@ -259,7 +268,7 @@ impl<'a> Turn<'a> {
                 Err(error) if !retry => {
                     tracing::warn!(%error, "retrying page after invalid translation output");
                     system.push_str(&format!(
-                        "\n\nThe previous answer failed validation: {error}. Regenerate the complete JSON from the supplied input. Return a non-empty string for every input key, including each numbered fragment."
+                        "\n\nThe previous answer failed validation: {error}. Regenerate the complete JSON from the supplied input. Return a valid translation for every input key, including each numbered fragment."
                     ));
                     retry = true;
                 }
@@ -270,14 +279,18 @@ impl<'a> Turn<'a> {
 
     /// Whether `translations` repeat the `last` page's, in order, for at least
     /// two texts and half of them, though the texts differ.
-    fn echoes(&self, translations: &[String], last: Option<&(Vec<String>, Vec<String>)>) -> bool {
+    fn echoes(
+        &self,
+        translations: &[TextAnswer],
+        last: Option<&(Vec<String>, Vec<String>)>,
+    ) -> bool {
         let Some((texts, answers)) = last else {
             return false;
         };
         let same = translations
             .iter()
             .zip(answers)
-            .filter(|(new, old)| new == old)
+            .filter(|(new, old)| &new.text == *old)
             .count();
         texts.as_slice() != self.texts && same >= 2 && 2 * same >= translations.len()
     }
@@ -323,12 +336,20 @@ fn numbered<'t>(keys: &[String], texts: impl Iterator<Item = &'t str>) -> String
     format!("{{\n{}\n}}", lines.join(",\n"))
 }
 
-/// An object with a string for each of `keys`. Every property is required,
-/// so rig's rewrite toward strict mode leaves it as it is.
+/// Every input key requires a translation. Flagged results carry a reason alongside the text.
 fn schema(keys: &[String]) -> Result<schemars::Schema> {
+    let output_value = json!({"anyOf": [
+        {"type": "string"},
+        {
+            "type": "object",
+            "properties": {"translation": {"type":"string"}, "reason": {"type":"string"}},
+            "required": ["translation", "reason"],
+            "additionalProperties": false
+        }
+    ]});
     let properties: Map<String, Value> = keys
         .iter()
-        .map(|key| (key.clone(), json!({"type": "string"})))
+        .map(|key| (key.clone(), output_value.clone()))
         .collect();
     schemars::Schema::try_from(json!({
         "type": "object",
@@ -341,7 +362,7 @@ fn schema(keys: &[String]) -> Result<schemars::Schema> {
 
 /// The translation for each of `keys` in `answer`, which must hold exactly
 /// those keys, each a text that isn't blank.
-fn answers(answer: &str, keys: &[String]) -> Result<Vec<String>> {
+fn answers(answer: &str, keys: &[String]) -> Result<Vec<TextAnswer>> {
     let Value::Object(mut answer) =
         serde_json::from_str(answer).context("the answer isn't JSON")?
     else {
@@ -350,7 +371,23 @@ fn answers(answer: &str, keys: &[String]) -> Result<Vec<String>> {
     let translations = keys
         .iter()
         .map(|key| match answer.remove(key) {
-            Some(Value::String(text)) if !text.trim().is_empty() => Ok(text),
+            Some(Value::String(text)) if !text.trim().is_empty() => Ok(text.into()),
+            Some(Value::Object(mut flagged)) => {
+                let Some(Value::String(text)) = flagged.remove("translation") else {
+                    bail!("missing translation for {key}")
+                };
+                let Some(Value::String(reason)) = flagged.remove("reason") else {
+                    bail!("missing review reason for {key}")
+                };
+                ensure!(
+                    flagged.is_empty() && !text.trim().is_empty() && !reason.trim().is_empty(),
+                    "invalid flagged translation for {key}"
+                );
+                Ok(TextAnswer {
+                    text,
+                    reason: Some(reason.trim().into()),
+                })
+            }
             Some(Value::String(_)) => bail!("the answer leaves text {key} blank"),
             Some(_) => bail!("the answer for text {key} isn't text"),
             None => bail!("the answer leaves text {key} out"),
@@ -404,11 +441,24 @@ mod tests {
         let keys = keys(2);
         assert_eq!(
             answers(r#"{"1": " One ", "2": "Two"}"#, &keys).expect("an answer"),
-            [" One ", "Two"]
+            [" One ", "Two"].map(|s| TextAnswer::from(s.to_owned()))
         );
         assert!(answers(r#"{"1": "One"}"#, &keys).is_err());
         assert!(answers(r#"{"1": "One", "2": " "}"#, &keys).is_err());
         assert!(answers(r#"{"1": "One", "2": "Two", "3": "Three"}"#, &keys).is_err());
         assert!(answers("One, Two", &keys).is_err());
+        let flagged = answers(
+            r#"{"1":"One","2":{"translation":"Two","reason":"Ambiguous speaker"}}"#,
+            &keys,
+        )
+        .unwrap();
+        assert_eq!(flagged[1].reason.as_deref(), Some("Ambiguous speaker"));
+        assert!(
+            answers(
+                r#"{"1":"One","2":{"translation":"Two","reason":" "}}"#,
+                &keys
+            )
+            .is_err()
+        );
     }
 }

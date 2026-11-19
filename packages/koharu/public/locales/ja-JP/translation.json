@@ -1,5 +1,26 @@
 {
+  "ink": {
+    "title": "文字色を統一",
+    "scope": "対象は処理に含めた {{pages}} ページです。初期設定では黒や白に近い訳文の文字色を純黒・純白に揃えます。",
+    "advanced": "詳細設定",
+    "blackThreshold": "黒に近い色の上限（各 RGB チャンネル）",
+    "whiteThreshold": "白に近い色の下限（各 RGB チャンネル）",
+    "target": "変更後の色",
+    "invalid": "0～255 の整数を入力し、黒の上限を白の下限より小さくしてください。",
+    "restore": "検出した文字色に戻す",
+    "apply": "文字色を統一",
+    "changed": "変更したテキストブロック数：{{blocks}}",
+    "hidden": "非表示のテキスト（{{count}}）"
+  },
   "review": {
+    "locationConflict": "特定した箇所を安全に置換できません。原文と現在の訳語を照合してください。",
+    "candidate": "用語の置換 · {{source}} → {{expected}}",
+    "currentTranslation": "現在の訳文",
+    "proposedEdit": "変更案",
+    "saveEdit": "変更を保存",
+    "keepTranslation": "現在の訳文を維持",
+    "uncertainTranslation": "モデルが確認を求めた訳文",
+    "confirmTranslation": "訳文を確定",
     "ink": "検出した文字色の確認",
     "inkChoice": {
       "keep": "現在の色を維持",
@@ -15,6 +36,10 @@
     "wiki": "LLM Wiki リンク"
   },
   "glossary": {
+    "applyToTranslations": "既存の訳文に適用",
+    "locatorModel": "文中の訳語は用語分析モデルが特定します。",
+    "locating": "訳語の位置を特定中…",
+    "applyResult": "更新したテキストブロック数：{{updated}}、要確認：{{review}}。",
     "manualCandidate": "訳語を追加",
     "removeManualCandidate": "手入力の訳語「{{text}}」を削除",
     "fastTranslation": "高速翻訳",
@@ -175,6 +200,7 @@
     "opened": "開いた状態",
     "steps": {
       "review_ink": "文字色を確認",
+      "apply_candidate": "既存の訳文に適用",
       "edit_glossary": "用語集を編集",
       "relink_originals": "原画像を再リンク",
       "add_text": "テキストを追加",

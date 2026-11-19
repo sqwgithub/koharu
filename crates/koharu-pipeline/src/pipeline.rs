@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -6,13 +7,14 @@ use std::{
     time::Duration,
 };
 
-use koharu_scene::{ProjectId, Session};
+use koharu_scene::{CandidateDecision, CandidateLine, GlossaryEntry, LayerId, ProjectId, Session};
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{broadcast, mpsc};
 
 use crate::{
     Error, Event, PipelineConfig, Request, Result, RunId,
     event::Events,
+    gpu::Gpu,
     scheduler::{Command, Plan, Run, Scheduler},
 };
 
@@ -23,6 +25,7 @@ use crate::{
 pub struct Pipeline(Arc<Shared>);
 
 struct Shared {
+    gpu: Gpu,
     config: Arc<RwLock<PipelineConfig>>,
     events: Events,
     commands: mpsc::UnboundedSender<Command>,
@@ -36,13 +39,25 @@ impl Pipeline {
     pub fn new(config: PipelineConfig) -> Self {
         let config = Arc::new(RwLock::new(config));
         let events = Events::new();
-        let commands = Scheduler::spawn(Arc::clone(&config), events.clone());
+        let gpu = Gpu::spawn(tokio::runtime::Handle::current());
+        let commands = Scheduler::spawn(Arc::clone(&config), events.clone(), gpu.clone());
         Self(Arc::new(Shared {
+            gpu,
             config,
             events,
             commands,
             next: AtomicU64::new(0),
         }))
+    }
+
+    /// Locates a selected glossary term in a snapshot of existing translations.
+    pub async fn locate_term(
+        &self,
+        config: &PipelineConfig,
+        entry: &GlossaryEntry,
+        lines: &[CandidateLine],
+    ) -> anyhow::Result<BTreeMap<LayerId, CandidateDecision>> {
+        crate::stages::glossary::locate(&self.0.gpu, config, entry, lines).await
     }
 
     /// Follows a changed `[pipeline]`. A model switched away from leaves

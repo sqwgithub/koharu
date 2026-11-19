@@ -1,3 +1,6 @@
+mod application;
+pub use application::{CandidateDecision, CandidateLine, CandidatePlan, CandidateReview};
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
@@ -54,14 +57,17 @@ impl GlossaryEntry {
     }
 }
 
-fn matches<'a>(term: &'a str, text: &'a str) -> impl Iterator<Item = (usize, usize)> {
+fn at_word_boundaries(term: &str, text: &str, start: usize, end: usize) -> bool {
     let word = |c: char| c.is_ascii_alphanumeric() || c == '_';
+    !(term.starts_with(word) && text[..start].ends_with(word)
+        || term.ends_with(word) && text[end..].starts_with(word))
+}
+
+fn matches<'a>(term: &'a str, text: &'a str) -> impl Iterator<Item = (usize, usize)> + 'a {
     text.match_indices(term)
         .filter_map(move |(start, matched)| {
             let end = start + matched.len();
-            let inside_left = term.starts_with(word) && text[..start].ends_with(word);
-            let inside_right = term.ends_with(word) && text[end..].starts_with(word);
-            (!inside_left && !inside_right).then_some((start, end))
+            at_word_boundaries(term, text, start, end).then_some((start, end))
         })
 }
 
@@ -71,6 +77,16 @@ pub fn matching_terms<'a>(
     layer: LayerId,
     text: &str,
 ) -> Vec<&'a GlossaryEntry> {
+    term_occurrences(entries, layer, text)
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .map(|index| &entries[index])
+        .collect()
+}
+
+/// Index of the rule owning each unprotected occurrence, in reading order.
+fn term_occurrences(entries: &[GlossaryEntry], layer: LayerId, text: &str) -> Vec<usize> {
     let protected: Vec<_> = entries
         .iter()
         .filter(|entry| entry.kind == GlossaryKind::Preserve && entry.applies_to(layer))
@@ -92,15 +108,15 @@ pub fn matching_terms<'a>(
         })
         .collect();
     matches.sort_unstable_by_key(|&(start, end, _)| (start, std::cmp::Reverse(end)));
-    let mut used = BTreeSet::new();
+    let mut used = Vec::new();
     let mut last = 0;
     for (start, end, index) in matches {
         if start >= last {
-            used.insert(index);
+            used.push(index);
             last = end;
         }
     }
-    used.into_iter().map(|index| &entries[index]).collect()
+    used
 }
 
 pub fn valid_glossary(entries: &[GlossaryEntry]) -> bool {
@@ -123,6 +139,13 @@ pub struct TermLocation {
     pub number: usize,
     pub layer: LayerId,
     pub text: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]
+pub struct TranslationUncertainty {
+    pub location: TermLocation,
+    pub translation: String,
+    pub reason: String,
 }
 
 pub const JAPANESE_HONORIFICS: [&str; 6] = ["ちゃん", "さん", "くん", "君", "さま", "様"];
@@ -208,6 +231,43 @@ pub struct TermIssue {
 }
 
 impl Project {
+    pub fn translation_uncertainties(&self) -> crate::Result<Vec<TranslationUncertainty>> {
+        let mut result = Vec::new();
+        for (index, page) in self.pages().enumerate() {
+            for (id, block) in self.blocks(page.id)? {
+                let Some(marker) = self
+                    .layer(id)?
+                    .attributes
+                    .get("koharu")
+                    .and_then(|attrs| attrs.get("translation_review"))
+                else {
+                    continue;
+                };
+                let Some(reason) = marker["reason"].as_str() else {
+                    continue;
+                };
+                let Some(text) = &block.translation else {
+                    continue;
+                };
+                let source = block.source.content.text();
+                let translation = text.content.text();
+                if marker["source"] == source && marker["translation"] == translation {
+                    result.push(TranslationUncertainty {
+                        location: TermLocation {
+                            page: page.id,
+                            number: index + 1,
+                            layer: id,
+                            text: source,
+                        },
+                        translation,
+                        reason: reason.to_owned(),
+                    });
+                }
+            }
+        }
+        Ok(result)
+    }
+
     pub fn alias_suggestions(&self) -> &[AliasSuggestion] {
         &self.suggestion_reviews.aliases
     }
