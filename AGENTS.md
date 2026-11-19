@@ -69,6 +69,5 @@ When starting a new session, read the [中文项目速览](.agents/README.md) fo
 
 ## Contributing
 
-- A human reviews the whole diff and can explain every change. Do not submit an unreviewed autonomous patch.
 - Keep pull-request text short: problem, change, and verification.
 - Never add an AI assistant as a commit co-author, for example through a `Co-Authored-By` trailer.
