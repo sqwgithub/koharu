@@ -57,6 +57,12 @@ pub fn get_glossary(app: State<'_, Arc<App>>) -> Result<GlossaryView> {
                     })
                     .collect();
                 Some(TermCandidate {
+                    manual: project
+                        .manual_candidates(&first.source)
+                        .iter()
+                        .filter(|text| !entries.iter().any(|e| &e.translation == *text))
+                        .cloned()
+                        .collect(),
                     entries: entries.clone(),
                     locations,
                 })
@@ -144,6 +150,26 @@ pub fn save_glossary(
         ops: vec![Op::SetGlossary { previous, entries }],
     })?;
     Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn edit_manual_candidate(
+    app: State<'_, Arc<App>>,
+    project: ProjectId,
+    source: String,
+    translation: String,
+    remove: bool,
+) -> Result<()> {
+    resolve_review(
+        &app,
+        project,
+        Op::EditManualCandidate {
+            source,
+            translation,
+            remove,
+        },
+    )
 }
 
 #[tauri::command]
@@ -256,6 +282,7 @@ pub async fn export_source(app: State<'_, Arc<App>>, window: Window<CefRuntime>)
 
 #[derive(Serialize, Type)]
 pub struct TermCandidate {
+    manual: Vec<String>,
     entries: Vec<GlossaryEntry>,
     locations: Vec<TermLocation>,
 }
@@ -276,4 +303,46 @@ pub fn analyze_glossary(app: State<'_, Arc<App>>, project: ProjectId) -> Result<
             config: None,
         },
     )?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_sfx_glossary() -> Result<koharu_pipeline::SfxGlossary> {
+    Ok(koharu_config::get()?)
+}
+
+/// Apply one explicit edit without overwriting other translations learned in the meantime.
+#[tauri::command]
+#[specta::specta]
+pub fn edit_sfx_term(
+    languages: String,
+    source: String,
+    previous: String,
+    translation: Option<String>,
+) -> Result<()> {
+    if translation.as_ref().is_some_and(|v| v.trim().is_empty()) {
+        return Err(anyhow::anyhow!("empty sound-effect translation").into());
+    }
+    let mut applied = false;
+    koharu_config::update(|table: &mut koharu_pipeline::SfxGlossary| {
+        let Some(entries) = table.languages.get_mut(&languages) else {
+            return;
+        };
+        if entries.get(&source) != Some(&previous) {
+            return;
+        }
+        if let Some(value) = translation {
+            entries.insert(source, value.trim().into());
+        } else {
+            entries.remove(&source);
+        }
+        if entries.is_empty() {
+            table.languages.remove(&languages);
+        }
+        applied = true;
+    })?;
+    if !applied {
+        return Err(anyhow::anyhow!("sound-effect entry changed; refresh the glossary").into());
+    }
+    Ok(())
 }

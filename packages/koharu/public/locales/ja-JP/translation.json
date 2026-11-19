@@ -15,6 +15,11 @@
     "wiki": "LLM Wiki リンク"
   },
   "glossary": {
+    "manualCandidate": "訳語を追加",
+    "removeManualCandidate": "手入力の訳語「{{text}}」を削除",
+    "fastTranslation": "高速翻訳",
+    "fastTranslationDescription": "繰り返す擬音語を別にまとめて翻訳し、同じ原文には共通用語集の訳を使います。",
+    "sfxGlossary": "擬音語の訳",
     "manage": "プロジェクトの用語表を管理",
     "globalTitle": "共通用語表",
     "globalScope": "すべてのプロジェクトに適用されます。同じ原文にはプロジェクトの登録内容が優先されます。",

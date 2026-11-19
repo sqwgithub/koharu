@@ -28,7 +28,7 @@ use crate::{
 /// on it, so opening refuses any other database before reading its rows.
 const APPLICATION_ID: i32 = 0x4B48_5255;
 /// The format version this build writes.
-const VERSION: Version = Version::new(1, 5, 0);
+const VERSION: Version = Version::new(1, 6, 0);
 const HAS_SUGGESTION_REVIEWS: Version = Version::new(1, 5, 0);
 const SUGGESTION_REVIEWS_TABLE: &str = "CREATE TABLE IF NOT EXISTS suggestion_reviews(id INTEGER PRIMARY KEY CHECK(id = 1), reviews TEXT NOT NULL) STRICT";
 const HAS_PROJECT_DATA: Version = Version::new(1, 1, 0);

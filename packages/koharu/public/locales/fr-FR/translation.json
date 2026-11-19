@@ -15,6 +15,11 @@
     "wiki": "Lien LLM Wiki"
   },
   "glossary": {
+    "manualCandidate": "Ajouter une traduction",
+    "removeManualCandidate": "Supprimer la traduction manuelle « {{text}} »",
+    "fastTranslation": "Traduction rapide",
+    "fastTranslationDescription": "Traduit les onomatopées répétées par lots séparés et réutilise les correspondances exactes du glossaire global.",
+    "sfxGlossary": "Traductions des onomatopées",
     "manage": "Gérer le glossaire du projet",
     "globalTitle": "Glossaire global",
     "globalScope": "S’applique à tous les projets. L’entrée du projet est prioritaire si le texte source est identique.",

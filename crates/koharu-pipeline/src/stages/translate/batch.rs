@@ -83,7 +83,7 @@ fn story_reference(
     project: &Project,
     current: &[Line],
     targets: &BTreeSet<LayerId>,
-    target: &LanguageIdentifier,
+    translator: &super::TranslatorConfig,
     preceding: bool,
     mut room: usize,
 ) -> Result<Vec<serde_json::Value>> {
@@ -110,10 +110,13 @@ fn story_reference(
             let Content::Block(block) = &project.layer(layer)?.content else {
                 continue;
             };
+            if translator.fast_sfx && block.role == koharu_scene::Role::Sfx {
+                continue;
+            }
             let Some(text) = block
                 .translation
                 .as_ref()
-                .filter(|text| text.language == *target)
+                .filter(|text| text.language == translator.target)
             else {
                 continue;
             };
@@ -424,7 +427,7 @@ pub(super) async fn translate(
                 &project,
                 current,
                 &targets,
-                &translator.target,
+                translator,
                 conversation.context.messages().is_empty(),
                 reference_budget,
             )?;
@@ -577,7 +580,7 @@ mod tests {
             &project,
             &selected,
             &BTreeSet::from([layer]),
-            &icu_locale_core::langid!("en"),
+            &super::super::TranslatorConfig::default(),
             true,
             256,
         )?;

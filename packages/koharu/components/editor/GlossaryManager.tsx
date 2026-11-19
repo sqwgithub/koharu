@@ -1,7 +1,7 @@
 'use client'
 
 import { openUrl } from '@tauri-apps/plugin-opener'
-import { Check, ExternalLink, Pencil, Plus, Search, Trash2 } from 'lucide-react'
+import { Check, ExternalLink, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -23,11 +23,13 @@ export function GlossaryManager({
   disabled,
   onSave,
   onLocation,
+  onEditCandidate,
 }: {
   entries: GlossaryEntry[]
   candidates?: TermCandidate[]
   disabled?: boolean
   onSave: (entries: GlossaryEntry[]) => Promise<void>
+  onEditCandidate?: (source: string, translation: string, remove: boolean) => Promise<void>
   onLocation?: (location: TermLocation) => void
 }) {
   const { t } = useTranslation()
@@ -153,7 +155,11 @@ export function GlossaryManager({
     )
   }
 
-  const visibleCandidates = candidates?.filter((group) => group.entries.some(matches))
+  const visibleCandidates = candidates?.filter(
+    (group) =>
+      group.entries.some(matches) ||
+      group.manual.some((text) => text.toLocaleLowerCase().includes(query)),
+  )
   const activeEntries = new Map(entries.map((entry) => [entry.source, entry]))
 
   return (
@@ -290,7 +296,7 @@ export function GlossaryManager({
           {!visibleCandidates?.length && (
             <p className='p-5 text-muted-foreground'>{t('glossary.noCandidates')}</p>
           )}
-          {visibleCandidates?.map(({ entries: choices, locations }) => {
+          {visibleCandidates?.map(({ entries: choices, manual, locations }) => {
             const source = choices[0].source
             const active = activeEntries.get(source)
             return (
@@ -329,6 +335,59 @@ export function GlossaryManager({
                       </Button>
                     )
                   })}
+                  {manual.map((text) => {
+                    const selected = !!active && !blocked(active) && active.translation === text
+                    return (
+                      <div key={text} className='inline-flex max-w-full items-stretch'>
+                        <Button
+                          type='button'
+                          size='sm'
+                          variant={selected ? 'secondary' : 'outline'}
+                          aria-pressed={selected}
+                          disabled={locked}
+                          className='h-auto min-h-8 min-w-0 rounded-e-none wrap-anywhere whitespace-normal'
+                          onClick={() => {
+                            if (selected) return
+                            const term =
+                              active && !blocked(active) ? active : choices.find((e) => !blocked(e))
+                            void save(
+                              replace(source, {
+                                source,
+                                kind: term?.kind ?? 'term',
+                                translation: text,
+                                note: term?.note ?? '',
+                                wiki_url: term?.wiki_url,
+                                excluded_layers: active?.excluded_layers,
+                              }),
+                            ).catch(() => undefined)
+                          }}
+                        >
+                          {selected && <Check aria-hidden='true' />} {text}
+                        </Button>
+                        <Button
+                          type='button'
+                          size='icon-sm'
+                          variant='outline'
+                          disabled={locked}
+                          className='h-auto shrink-0 rounded-s-none border-s-0'
+                          aria-label={t('glossary.removeManualCandidate', { text })}
+                          onClick={() =>
+                            void onEditCandidate?.(source, text, true).catch(() => undefined)
+                          }
+                        >
+                          <X aria-hidden='true' />
+                        </Button>
+                      </div>
+                    )
+                  })}
+                  {onEditCandidate && (
+                    <ManualCandidateInput
+                      choices={choices}
+                      manual={manual}
+                      disabled={locked}
+                      onAdd={(text) => onEditCandidate(source, text, false)}
+                    />
+                  )}
                 </div>
                 {onLocation &&
                   locations.map((location) => {
@@ -362,5 +421,60 @@ export function GlossaryManager({
         </TabsContent>
       )}
     </Tabs>
+  )
+}
+
+function ManualCandidateInput({
+  choices,
+  manual,
+  disabled,
+  onAdd,
+}: {
+  choices: GlossaryEntry[]
+  manual: string[]
+  disabled?: boolean
+  onAdd: (text: string) => Promise<void>
+}) {
+  const { t } = useTranslation()
+  const [value, setValue] = useState('')
+  const text = value.trim()
+  const canAdd =
+    text.length > 0 &&
+    !disabled &&
+    !manual.includes(text) &&
+    !choices.some((entry) => entry.translation === text)
+  return (
+    <form
+      className='inline-flex items-center gap-1'
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (canAdd)
+          void onAdd(text)
+            .then(() => setValue(''))
+            .catch(() => undefined)
+      }}
+    >
+      <Input
+        className='h-8 w-28'
+        value={value}
+        disabled={disabled}
+        aria-label={t('glossary.manualCandidate')}
+        placeholder={t('glossary.manualCandidate')}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229))
+            e.preventDefault()
+        }}
+      />
+      <Button
+        type='submit'
+        size='icon-sm'
+        variant='outline'
+        disabled={!canAdd}
+        aria-label={t('glossary.manualCandidate')}
+      >
+        <Plus aria-hidden='true' />
+      </Button>
+    </form>
   )
 }

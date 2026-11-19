@@ -178,6 +178,9 @@ impl TextSuggestion {
 /// Closed pairs survive another analysis, even if the model rephrases its reason.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub(crate) struct SuggestionReviews {
+    /// Alternatives explicitly entered for a project candidate group.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub manual_candidates: BTreeMap<String, Vec<String>>,
     pub aliases: Vec<AliasSuggestion>,
     pub closed_aliases: BTreeSet<(String, String)>,
     pub corrections: Vec<TextSuggestion>,
@@ -235,6 +238,14 @@ impl Project {
     }
     pub fn glossary(&self) -> &[GlossaryEntry] {
         &self.glossary
+    }
+
+    pub fn manual_candidates(&self, source: &str) -> &[String] {
+        self.suggestion_reviews
+            .manual_candidates
+            .get(source)
+            .map(Vec::as_slice)
+            .unwrap_or_default()
     }
 
     pub fn glossary_candidates(&self) -> &[Vec<GlossaryEntry>] {

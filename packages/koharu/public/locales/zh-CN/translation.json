@@ -15,6 +15,11 @@
     "wiki": "LLM Wiki 链接"
   },
   "glossary": {
+    "manualCandidate": "手动添加译名",
+    "removeManualCandidate": "删除手动译名「{{text}}」",
+    "fastTranslation": "快速翻译",
+    "fastTranslationDescription": "重复拟声词单独成批翻译，同一原文复用全局词表中的译名。",
+    "sfxGlossary": "拟声词译名",
     "manage": "管理项目词表",
     "globalTitle": "全局词表",
     "globalScope": "适用于所有项目。同一原文以项目词条为准。",

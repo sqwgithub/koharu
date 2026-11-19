@@ -15,6 +15,11 @@
     "wiki": "LLM Wiki link"
   },
   "glossary": {
+    "manualCandidate": "Add a translation",
+    "removeManualCandidate": "Remove manual translation “{{text}}”",
+    "fastTranslation": "Fast translation",
+    "fastTranslationDescription": "Translate repeated sound effects in separate batches and reuse exact matches from the global glossary.",
+    "sfxGlossary": "Sound-effect translations",
     "manage": "Manage project glossary",
     "globalTitle": "Global glossary",
     "globalScope": "Applies across projects. A project entry takes precedence when the source text is the same.",
