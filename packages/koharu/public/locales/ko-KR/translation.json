@@ -15,6 +15,9 @@
     "wiki": "LLM Wiki 링크"
   },
   "glossary": {
+    "fastTranslation": "빠른 번역",
+    "fastTranslationDescription": "반복되는 효과음은 따로 묶어 번역하고 원문이 일치하면 전역 용어집의 번역을 사용합니다.",
+    "sfxGlossary": "효과음 번역",
     "manage": "프로젝트 용어집 관리",
     "globalTitle": "공용 용어집",
     "globalScope": "모든 프로젝트에 적용됩니다. 원문이 같으면 프로젝트 항목이 우선합니다.",

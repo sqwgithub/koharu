@@ -62,7 +62,7 @@ impl<'a> Turn<'a> {
     /// history. `None` when the run stopped first.
     pub(super) async fn take(
         self,
-        conversation: &mut Conversation,
+        conversation: Option<&mut Conversation>,
         model: &DynModel<Completion>,
     ) -> Result<Option<Vec<String>>> {
         let source_keys = keys(self.texts.len());
@@ -75,7 +75,9 @@ impl<'a> Turn<'a> {
                     .zip(self.texts)
                     .any(|(&layer, text)| entry.applies_to(layer) && entry.matches(text))
         });
-        let width = if isolated {
+        let width = if conversation.is_none() {
+            self.texts.len().max(1)
+        } else if isolated {
             1
         } else if protected {
             PROTECTED_BATCH_LINES
@@ -104,6 +106,12 @@ impl<'a> Turn<'a> {
             })
             .collect();
 
+        let Some(conversation) = conversation else {
+            return Ok(self
+                .independent(&batches, model, 1)
+                .await?
+                .map(|(texts, _)| texts));
+        };
         if isolated {
             // Only the image-enabled route reaches this branch for Go DeepSeek.
             // Text-only runs use the multi-page batch protocol.

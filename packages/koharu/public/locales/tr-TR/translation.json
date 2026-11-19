@@ -15,6 +15,9 @@
     "wiki": "LLM Wiki bağlantısı"
   },
   "glossary": {
+    "fastTranslation": "Hızlı çeviri",
+    "fastTranslationDescription": "Yinelenen ses efektlerini ayrı gruplar hâlinde çevirir ve genel sözlükteki tam eşleşmeleri kullanır.",
+    "sfxGlossary": "Ses efekti çevirileri",
     "manage": "Proje sözlüğünü yönet",
     "globalTitle": "Genel sözlük",
     "globalScope": "Tüm projelerde geçerlidir. Kaynak metin aynıysa proje girdisi önceliklidir.",

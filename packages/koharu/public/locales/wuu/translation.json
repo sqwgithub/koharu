@@ -15,6 +15,9 @@
     "wiki": "LLM Wiki 链接"
   },
   "glossary": {
+    "fastTranslation": "快速翻译",
+    "fastTranslationDescription": "重复个拟声词另外分批翻译，相同原文用全局词表里个译名。",
+    "sfxGlossary": "拟声词译名",
     "manage": "管理项目术语表",
     "globalTitle": "全局术语表",
     "globalScope": "适用于全部项目。同一原文以项目词条为准。",

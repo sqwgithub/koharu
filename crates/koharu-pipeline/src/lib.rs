@@ -22,5 +22,5 @@ pub use stages::{
     glossary::{GlossaryAnalysisConfig, GlossaryReasoning},
     inpaint::{Inpainter, InpainterConfig},
     recognize::{Recognizer, RecognizerConfig},
-    translate::{TranslatorConfig, placement},
+    translate::{SfxGlossary, TranslatorConfig, placement},
 };

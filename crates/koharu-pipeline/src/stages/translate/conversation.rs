@@ -14,7 +14,7 @@ use super::{TranslatorConfig, model};
 /// A project's conversation, and what it was written with.
 pub(crate) struct Conversation {
     /// The model, the target, and the prompt its history was written with.
-    with: Option<(String, LanguageIdentifier, String)>,
+    with: Option<(String, LanguageIdentifier, String, bool, bool)>,
     pub(super) context: Context,
     /// A hosted model, connected for its first page.
     hosted: Option<DynModel<Completion>>,
@@ -41,6 +41,8 @@ impl Conversation {
             config.model.clone(),
             config.target.clone(),
             config.instructions.clone(),
+            config.vision,
+            config.fast_sfx,
         );
         if self.with.as_ref() != Some(&with) || self.glossary != glossary {
             *self = Self::new();

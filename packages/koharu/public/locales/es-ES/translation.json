@@ -15,6 +15,9 @@
     "wiki": "Enlace a LLM Wiki"
   },
   "glossary": {
+    "fastTranslation": "Traducción rápida",
+    "fastTranslationDescription": "Traduce las onomatopeyas repetidas en lotes separados y reutiliza las coincidencias exactas del glosario global.",
+    "sfxGlossary": "Traducciones de onomatopeyas",
     "manage": "Gestionar glosario del proyecto",
     "globalTitle": "Glosario global",
     "globalScope": "Se aplica a todos los proyectos. La entrada del proyecto tiene prioridad si el texto original coincide.",

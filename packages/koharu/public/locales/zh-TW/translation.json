@@ -15,6 +15,9 @@
     "wiki": "LLM Wiki 連結"
   },
   "glossary": {
+    "fastTranslation": "快速翻譯",
+    "fastTranslationDescription": "重複擬聲詞會獨立分批翻譯，相同原文沿用全域詞表中的譯名。",
+    "sfxGlossary": "擬聲詞譯名",
     "manage": "管理專案詞表",
     "globalTitle": "全域詞表",
     "globalScope": "適用於所有專案。同一原文以專案詞條為準。",

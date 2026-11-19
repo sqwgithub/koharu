@@ -277,3 +277,45 @@ pub fn analyze_glossary(app: State<'_, Arc<App>>, project: ProjectId) -> Result<
         },
     )?)
 }
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_sfx_glossary() -> Result<koharu_pipeline::SfxGlossary> {
+    Ok(koharu_config::get()?)
+}
+
+/// Apply one explicit edit without overwriting other translations learned in the meantime.
+#[tauri::command]
+#[specta::specta]
+pub fn edit_sfx_term(
+    languages: String,
+    source: String,
+    previous: String,
+    translation: Option<String>,
+) -> Result<()> {
+    if translation.as_ref().is_some_and(|v| v.trim().is_empty()) {
+        return Err(anyhow::anyhow!("empty sound-effect translation").into());
+    }
+    let mut applied = false;
+    koharu_config::update(|table: &mut koharu_pipeline::SfxGlossary| {
+        let Some(entries) = table.languages.get_mut(&languages) else {
+            return;
+        };
+        if entries.get(&source) != Some(&previous) {
+            return;
+        }
+        if let Some(value) = translation {
+            entries.insert(source, value.trim().into());
+        } else {
+            entries.remove(&source);
+        }
+        if entries.is_empty() {
+            table.languages.remove(&languages);
+        }
+        applied = true;
+    })?;
+    if !applied {
+        return Err(anyhow::anyhow!("sound-effect entry changed; refresh the glossary").into());
+    }
+    Ok(())
+}

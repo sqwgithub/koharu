@@ -2,6 +2,8 @@
 
 mod batch;
 mod conversation;
+mod fast;
+pub use fast::SfxGlossary;
 pub(super) mod model;
 mod placement;
 mod rules;
@@ -48,6 +50,8 @@ pub struct TranslatorConfig {
     /// texts, as an image goes with a chat message to OpenAI's and Gemini's
     /// models; only for a model that reads images.
     pub vision: bool,
+    /// Translate repeated sound effects using the global sound-effect glossary.
+    pub fast_sfx: bool,
     /// How much the model reasons before it answers: off, or one of rig's
     /// portable levels after OpenAI's `reasoning_effort`, written as one word;
     /// the model's own default when unset. rig refuses off for a model that
@@ -67,6 +71,7 @@ impl Default for TranslatorConfig {
             target: langid!("en"),
             instructions: String::new(),
             vision: false,
+            fast_sfx: false,
             reasoning: None,
         }
     }
@@ -122,10 +127,16 @@ struct Page {
 }
 
 pub(crate) async fn translate(
-    task: &Task,
+    task: &mut Task,
     config: &PipelineConfig,
     mut conversation: OwnedMutexGuard<Conversation>,
 ) -> Result<()> {
+    if config.translator.fast_sfx {
+        fast::translate(task, config, &mut conversation).await?;
+        if task.members.is_empty() {
+            return Ok(());
+        }
+    }
     if config.translator.batches_pages() {
         return batch::translate(task, config, &mut conversation).await;
     }
@@ -163,23 +174,7 @@ pub(crate) async fn translate(
     }
     let conversation = &mut *conversation;
     conversation.keep(&translator, &effective);
-    let model = match key(Stage::Translate, config) {
-        // A local model loads on the GPU thread, which only hands it over:
-        // its engine runs on a thread of its own, so the turn waits off the
-        // GPU thread, and the other stages' models run meanwhile.
-        Some(key) => {
-            let (reference, images) = (translator.model.clone(), translator.vision);
-            task.inference(&[member], move |models| {
-                let model = models.get(&key, |_| model::load(&reference, images))?;
-                Ok(DynModel::clone(model))
-            })
-            .await?
-        }
-        None => {
-            task.started(&[member]);
-            conversation.hosted(&translator).await?
-        }
-    };
+    let model = translation_model(task, config, conversation).await?;
     let turn = Turn::new(
         system(&translator)?,
         &texts,
@@ -190,7 +185,7 @@ pub(crate) async fn translate(
         &member.cancel,
     );
     let Some(translations) = turn
-        .take(conversation, &model)
+        .take(Some(conversation), &model)
         .instrument(info_span!("llm", texts = texts.len()))
         .await?
     else {
@@ -211,6 +206,32 @@ pub(crate) async fn translate(
             written(project, translated, &translator, &global)
         })
         .await
+}
+
+async fn translation_model(
+    task: &Task,
+    config: &PipelineConfig,
+    conversation: &mut Conversation,
+) -> Result<DynModel<koharu_llm::rig::operation::Completion>> {
+    let translator = &config.translator;
+    let member = &task.members[0];
+    Ok(match key(Stage::Translate, config) {
+        // A local model loads on the GPU thread, which only hands it over:
+        // its engine runs on a thread of its own, so the turn waits off the
+        // GPU thread, and the other stages' models run meanwhile.
+        Some(key) => {
+            let (reference, images) = (translator.model.clone(), translator.vision);
+            task.inference(&[member], move |models| {
+                let model = models.get(&key, |_| model::load(&reference, images))?;
+                Ok(DynModel::clone(model))
+            })
+            .await?
+        }
+        None => {
+            task.started(&[member]);
+            conversation.hosted(translator).await?
+        }
+    })
 }
 
 /// The page's texts the task works on, and the page itself when the model

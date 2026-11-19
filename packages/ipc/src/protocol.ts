@@ -787,6 +787,10 @@ export type Role = "text" | "sfx";
 /**  A run, numbered in the order runs were asked for. */
 export type RunId = number;
 
+export type SfxGlossary = {
+	languages?: { [key in string]: { [key in string]: string } },
+};
+
 /**  A vector path with an optional fill and stroke, in page coordinates. */
 export type Shape = {
 	path: Path,
@@ -956,6 +960,8 @@ export type TranslatorConfig = {
 	 *  models; only for a model that reads images.
 	 */
 	vision?: boolean,
+	/**  Translate repeated sound effects using the global sound-effect glossary. */
+	fast_sfx?: boolean,
 	/**
 	 *  How much the model reasons before it answers: off, or one of rig's
 	 *  portable levels after OpenAI's `reasoning_effort`, written as one word;
@@ -1056,6 +1062,9 @@ import: (source: ImportSource) => invoke<null>("import", { source }, { headers: 
 /** Picks where the open project's pages go, and writes them there. `labels` names a PSD's layers the scene names nothing, in the interface's language. */
 export: (format: ExportFormat, labels: Labels) => invoke<null>("export", { format, labels }, { headers: headers() }),
 getGlossary: () => invoke<GlossaryView>("get_glossary", {  }, { headers: headers() }),
+getSfxGlossary: () => invoke<SfxGlossary>("get_sfx_glossary", {  }, { headers: headers() }),
+/** Apply one explicit edit without overwriting other translations learned in the meantime. */
+editSfxTerm: (languages: string, source: string, previous: string, translation: string | null) => invoke<null>("edit_sfx_term", { languages, source, previous, translation }, { headers: headers() }),
 resolveAlias: (project: ProjectId, suggestion: AliasSuggestion, translation: string | null) => invoke<null>("resolve_alias", { project, suggestion, translation }, { headers: headers() }),
 resolveTranslation: (project: ProjectId, suggestion: TextSuggestion, translation: string | null) => invoke<null>("resolve_translation", { project, suggestion, translation }, { headers: headers() }),
 resolveInk: (project: ProjectId, suggestion: InkSuggestion, choice: InkChoice) => invoke<null>("resolve_ink", { project, suggestion, choice }, { headers: headers() }),
