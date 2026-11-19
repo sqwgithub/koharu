@@ -13,6 +13,12 @@
     "hidden": "Скрытый текст ({{count}})"
   },
   "review": {
+    "locationConflict": "Не удалось проверить фрагмент для замены. Сверьте термин в текущем переводе с оригиналом.",
+    "candidate": "Замена термина · {{source}} → {{expected}}",
+    "currentTranslation": "Текущий перевод",
+    "proposedEdit": "Предлагаемая правка",
+    "saveEdit": "Сохранить правку",
+    "keepTranslation": "Оставить перевод",
     "uncertainTranslation": "Модель сомневается в переводе",
     "confirmTranslation": "Подтвердить перевод",
     "ink": "Обнаруженные цвета для проверки",
@@ -31,7 +37,9 @@
   },
   "glossary": {
     "applyToTranslations": "Применить к готовым переводам",
-    "updatedBlocks": "Обновлено текстовых блоков: {{blocks}}",
+    "locatorModel": "Модель анализа терминов находит переводы в предложениях.",
+    "locating": "Поиск терминов…",
+    "applyResult": "Обновлено блоков: {{updated}}. На проверке: {{review}}.",
     "manualCandidate": "Добавить перевод",
     "removeManualCandidate": "Удалить свой перевод «{{text}}»",
     "fastTranslation": "Быстрый перевод",

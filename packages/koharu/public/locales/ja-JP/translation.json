@@ -13,6 +13,12 @@
     "hidden": "非表示のテキスト（{{count}}）"
   },
   "review": {
+    "locationConflict": "特定した箇所を安全に置換できません。原文と現在の訳語を照合してください。",
+    "candidate": "用語の置換 · {{source}} → {{expected}}",
+    "currentTranslation": "現在の訳文",
+    "proposedEdit": "変更案",
+    "saveEdit": "変更を保存",
+    "keepTranslation": "現在の訳文を維持",
     "uncertainTranslation": "モデルが確認を求めた訳文",
     "confirmTranslation": "訳文を確定",
     "ink": "検出した文字色の確認",
@@ -31,7 +37,9 @@
   },
   "glossary": {
     "applyToTranslations": "既存の訳文に適用",
-    "updatedBlocks": "更新したテキストブロック数：{{blocks}}",
+    "locatorModel": "文中の訳語は用語分析モデルが特定します。",
+    "locating": "訳語の位置を特定中…",
+    "applyResult": "更新したテキストブロック数：{{updated}}、要確認：{{review}}。",
     "manualCandidate": "訳語を追加",
     "removeManualCandidate": "手入力の訳語「{{text}}」を削除",
     "fastTranslation": "高速翻訳",

@@ -30,6 +30,7 @@ pub(crate) type Work = Box<dyn FnOnce(&mut Models) + Send>;
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(crate) enum Turn {
     Upkeep,
+    Interactive,
     Stage(Priority),
 }
 

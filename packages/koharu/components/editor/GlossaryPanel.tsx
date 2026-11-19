@@ -208,9 +208,9 @@ export function GlossaryPanel({ project, active }: { project: ProjectId; active:
               onApplyCandidate={async (entry, locations) => {
                 setBusy(true)
                 try {
-                  const updated = await call(commands.applyCandidate, project, entry, locations)
+                  const result = await call(commands.applyCandidate, project, entry, locations)
                   await refresh(glossaryKey)
-                  return updated
+                  return result
                 } finally {
                   setBusy(false)
                 }

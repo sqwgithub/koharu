@@ -143,6 +143,20 @@ export type Camera = {
 	y: number,
 };
 
+export type CandidateApplication = {
+	updated: number,
+	review: number,
+};
+
+export type CandidateReview = {
+	location: TermLocation,
+	source: string,
+	expected: string,
+	previous: string,
+	preview: string | null,
+	reason: string,
+};
+
 /**  What one edit, undo, or redo changed. */
 export type Change = {
 	revision: Revision,
@@ -350,6 +364,7 @@ export type GlossaryView = {
 	lines: number,
 	suggestions: AliasSuggestion[],
 	corrections: TextSuggestion[],
+	candidate_reviews: CandidateReview[],
 	uncertainties: TranslationUncertainty[],
 	inks: InkSuggestion[],
 	candidates: TermCandidate[] | null,
@@ -1084,12 +1099,13 @@ getSfxGlossary: () => invoke<SfxGlossary>("get_sfx_glossary", {  }, { headers: h
 editSfxTerm: (languages: string, source: string, previous: string, translation: string | null) => invoke<null>("edit_sfx_term", { languages, source, previous, translation }, { headers: headers() }),
 resolveAlias: (project: ProjectId, suggestion: AliasSuggestion, translation: string | null) => invoke<null>("resolve_alias", { project, suggestion, translation }, { headers: headers() }),
 resolveTranslation: (project: ProjectId, suggestion: TextSuggestion, translation: string | null) => invoke<null>("resolve_translation", { project, suggestion, translation }, { headers: headers() }),
+resolveCandidateReview: (project: ProjectId, suggestion: CandidateReview, translation: string | null) => invoke<null>("resolve_candidate_review", { project, suggestion, translation }, { headers: headers() }),
 resolveUncertainty: (project: ProjectId, suggestion: TranslationUncertainty, translation: string) => invoke<null>("resolve_uncertainty", { project, suggestion, translation }, { headers: headers() }),
 resolveInk: (project: ProjectId, suggestion: InkSuggestion, choice: InkChoice) => invoke<null>("resolve_ink", { project, suggestion, choice }, { headers: headers() }),
 normalizeInk: (project: ProjectId, settings: InkNormalization | null) => invoke<number>("normalize_ink", { project, settings }, { headers: headers() }),
 extractSource: (project: ProjectId) => invoke<RunId[]>("extract_source", { project }, { headers: headers() }),
 saveGlossary: (project: ProjectId, previous: GlossaryEntry[], entries: GlossaryEntry[]) => invoke<null>("save_glossary", { project, previous, entries }, { headers: headers() }),
-applyCandidate: (project: ProjectId, entry: GlossaryEntry, locations: LayerId[]) => invoke<number>("apply_candidate", { project, entry, locations }, { headers: headers() }),
+applyCandidate: (project: ProjectId, entry: GlossaryEntry, locations: LayerId[]) => invoke<CandidateApplication>("apply_candidate", { project, entry, locations }, { headers: headers() }),
 editManualCandidate: (project: ProjectId, source: string, translation: string, remove: boolean) => invoke<null>("edit_manual_candidate", { project, source, translation, remove }, { headers: headers() }),
 exportSource: () => invoke<null>("export_source", {  }, { headers: headers() }),
 analyzeGlossary: (project: ProjectId) => invoke<RunId>("analyze_glossary", { project }, { headers: headers() }),

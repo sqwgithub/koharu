@@ -13,6 +13,12 @@
     "hidden": "Gizli metin ({{count}})"
   },
   "review": {
+    "locationConflict": "Değiştirilecek metin doğrulanamadı. Terimi mevcut çeviride kontrol edin.",
+    "candidate": "Terim değişikliği · {{source}} → {{expected}}",
+    "currentTranslation": "Mevcut çeviri",
+    "proposedEdit": "Önerilen değişiklik",
+    "saveEdit": "Değişikliği kaydet",
+    "keepTranslation": "Çeviriyi koru",
     "uncertainTranslation": "Modelin inceleme istediği çeviri",
     "confirmTranslation": "Çeviriyi onayla",
     "ink": "İncelenecek metin renkleri",
@@ -31,7 +37,9 @@
   },
   "glossary": {
     "applyToTranslations": "Mevcut çevirilere uygula",
-    "updatedBlocks": "Güncellenen metin bloğu sayısı: {{blocks}}",
+    "locatorModel": "Terim analizi modeli terimleri cümle içinde bulur.",
+    "locating": "Terimler bulunuyor…",
+    "applyResult": "Güncellenen blok sayısı: {{updated}}. İncelenecek blok sayısı: {{review}}.",
     "manualCandidate": "Çeviri ekle",
     "removeManualCandidate": "Elle girilen “{{text}}” çevirisini kaldır",
     "fastTranslation": "Hızlı çeviri",

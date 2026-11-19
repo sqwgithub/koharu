@@ -41,6 +41,7 @@ it('moves pending rows as their effective visibility changes', async () => {
     project: 'book',
     suggestions: [],
     uncertainties: [],
+    candidate_reviews: [],
     corrections: [],
     inks: [
       {

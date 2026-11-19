@@ -22,6 +22,7 @@ pub struct GlossaryView {
     lines: usize,
     suggestions: Vec<AliasSuggestion>,
     corrections: Vec<TextSuggestion>,
+    candidate_reviews: Vec<koharu_scene::CandidateReview>,
     uncertainties: Vec<koharu_scene::TranslationUncertainty>,
     inks: Vec<koharu_scene::InkSuggestion>,
     candidates: Option<Vec<TermCandidate>>,
@@ -80,6 +81,7 @@ pub fn get_glossary(app: State<'_, Arc<App>>) -> Result<GlossaryView> {
         lines: lines.len(),
         suggestions: project.alias_suggestions().to_vec(),
         corrections: project.text_suggestions().to_vec(),
+        candidate_reviews: project.candidate_reviews(&global)?,
         uncertainties: project.translation_uncertainties()?,
         inks: project.ink_suggestions(&global)?,
         candidates,
@@ -155,6 +157,12 @@ pub fn save_glossary(
     Ok(())
 }
 
+#[derive(Serialize, Type)]
+pub struct CandidateApplication {
+    updated: usize,
+    review: usize,
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn apply_candidate(
@@ -162,32 +170,79 @@ pub async fn apply_candidate(
     project: ProjectId,
     entry: GlossaryEntry,
     locations: Vec<koharu_scene::LayerId>,
-) -> Result<usize> {
+) -> Result<CandidateApplication> {
+    let (snapshot, closing) = {
+        let opened = app.project.lock();
+        let opened = opened.as_ref().context("no project is open")?;
+        let session = opened.session.lock();
+        if session.id() != project {
+            return Err(anyhow::anyhow!("the open project changed").into());
+        }
+        (session.project(), opened.closing.clone())
+    };
+    let config = koharu_config::get::<PipelineConfig>()?;
+    let (config, entry, plan) = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
+        let plan = snapshot.candidate_plan(&entry, &locations, &config.glossary)?;
+        Ok((config, entry, plan))
+    })
+    .await??;
+    let decisions = tokio::select! {
+        biased;
+        _ = closing.cancelled() => return Err(anyhow::anyhow!("the open project changed").into()),
+        result = app.pipeline.locate_term(&config, &entry, &plan.lines) => result?,
+    };
     let app = Arc::clone(&app);
-    Ok(
-        tokio::task::spawn_blocking(move || -> anyhow::Result<usize> {
-            let global = koharu_config::get::<PipelineConfig>()?.glossary;
-            let opened = app.project.lock();
-            let mut session = opened
-                .as_ref()
-                .context("no project is open")?
-                .session
-                .lock();
-            anyhow::ensure!(session.id() == project, "the open project changed");
-            let ops = session
+    Ok(tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
+        let opened = app.project.lock();
+        let opened = opened.as_ref().context("no project is open")?;
+        anyhow::ensure!(!closing.is_cancelled(), "the open project changed");
+        let current = koharu_config::get::<PipelineConfig>()?;
+        anyhow::ensure!(
+            current.translator.target == config.translator.target,
+            "the translation language changed"
+        );
+        let mut session = opened.session.lock();
+        let (ops, updated, review) =
+            session
                 .project()
-                .apply_candidate(&entry, &locations, &global)?;
-            let count = ops.len();
-            if count > 0 {
-                session.apply(Edit {
-                    label: "apply_candidate".into(),
-                    ops,
-                })?;
-            }
-            Ok(count)
-        })
-        .await??,
-    )
+                .settle_candidate(&plan, &decisions, &current.glossary)?;
+        if !ops.is_empty() {
+            session.apply(Edit {
+                label: "apply_candidate".into(),
+                ops,
+            })?;
+        }
+        Ok(CandidateApplication { updated, review })
+    })
+    .await??)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn resolve_candidate_review(
+    app: State<'_, Arc<App>>,
+    project: ProjectId,
+    suggestion: koharu_scene::CandidateReview,
+    translation: Option<String>,
+) -> Result<()> {
+    let opened = app.project.lock();
+    let opened = opened.as_ref().context("no project is open")?;
+    let mut session = opened.session.lock();
+    if session.id() != project {
+        return Err(anyhow::anyhow!("the open project changed").into());
+    }
+    let global = koharu_config::get::<PipelineConfig>()?.glossary;
+    let ops =
+        session
+            .project()
+            .candidate_review_ops(&suggestion, translation.as_deref(), &global)?;
+    if !ops.is_empty() {
+        session.apply(Edit {
+            label: "apply_candidate".into(),
+            ops,
+        })?;
+    }
+    Ok(())
 }
 
 #[tauri::command]

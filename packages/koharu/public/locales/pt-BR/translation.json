@@ -13,6 +13,12 @@
     "hidden": "Texto oculto ({{count}})"
   },
   "review": {
+    "locationConflict": "Não foi possível validar o trecho a substituir. Confira o termo na tradução atual.",
+    "candidate": "Substituição de termo · {{source}} → {{expected}}",
+    "currentTranslation": "Tradução atual",
+    "proposedEdit": "Alteração sugerida",
+    "saveEdit": "Salvar alteração",
+    "keepTranslation": "Manter tradução",
     "uncertainTranslation": "Tradução sinalizada pelo modelo",
     "confirmTranslation": "Confirmar tradução",
     "ink": "Cores detectadas para revisar",
@@ -31,7 +37,9 @@
   },
   "glossary": {
     "applyToTranslations": "Aplicar às traduções existentes",
-    "updatedBlocks": "Blocos de texto atualizados: {{blocks}}",
+    "locatorModel": "O modelo de análise terminológica localiza os termos nas frases.",
+    "locating": "Localizando termos…",
+    "applyResult": "Blocos atualizados: {{updated}}. A revisar: {{review}}.",
     "manualCandidate": "Adicionar tradução",
     "removeManualCandidate": "Remover a tradução manual “{{text}}”",
     "fastTranslation": "Tradução rápida",

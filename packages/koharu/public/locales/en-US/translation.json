@@ -13,6 +13,12 @@
     "hidden": "Hidden text ({{count}})"
   },
   "review": {
+    "locationConflict": "The located text could not be safely replaced. Check the term in the current translation.",
+    "candidate": "Term replacement · {{source}} → {{expected}}",
+    "currentTranslation": "Current translation",
+    "proposedEdit": "Proposed edit",
+    "saveEdit": "Save edit",
+    "keepTranslation": "Keep translation",
     "uncertainTranslation": "Translation flagged by the model",
     "confirmTranslation": "Confirm translation",
     "ink": "Detected ink to review",
@@ -31,7 +37,9 @@
   },
   "glossary": {
     "applyToTranslations": "Apply to existing translations",
-    "updatedBlocks": "Text blocks updated: {{blocks}}",
+    "locatorModel": "The terminology analysis model locates terms within sentences.",
+    "locating": "Locating terms…",
+    "applyResult": "Updated text blocks: {{updated}}. Flagged for review: {{review}}.",
     "manualCandidate": "Add a translation",
     "removeManualCandidate": "Remove manual translation “{{text}}”",
     "fastTranslation": "Fast translation",

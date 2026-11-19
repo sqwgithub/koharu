@@ -6,6 +6,7 @@ import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type {
+  CandidateApplication,
   GlossaryEntry,
   GlossaryKind,
   LayerId,
@@ -37,7 +38,7 @@ export function GlossaryManager({
   disabled?: boolean
   onSave: (entries: GlossaryEntry[]) => Promise<void>
   onEditCandidate?: (source: string, translation: string, remove: boolean) => Promise<void>
-  onApplyCandidate?: (entry: GlossaryEntry, locations: LayerId[]) => Promise<number>
+  onApplyCandidate?: (entry: GlossaryEntry, locations: LayerId[]) => Promise<CandidateApplication>
   onLocation?: (location: TermLocation) => void
 }) {
   const { t } = useTranslation()
@@ -461,10 +462,11 @@ function ApplyCandidateButton({
   entry?: GlossaryEntry
   locations: TermLocation[]
   disabled?: boolean
-  onApply: (entry: GlossaryEntry, locations: LayerId[]) => Promise<number>
+  onApply: (entry: GlossaryEntry, locations: LayerId[]) => Promise<CandidateApplication>
 }) {
   const { t } = useTranslation()
-  const [updated, setUpdated] = useState<number | null>(null)
+  const [result, setResult] = useState<CandidateApplication | null>(null)
+  const [applying, setApplying] = useState(false)
   const excluded = new Set(entry?.excluded_layers)
   const layers = locations.map((location) => location.layer).filter((id) => !excluded.has(id))
   return (
@@ -473,22 +475,26 @@ function ApplyCandidateButton({
         type='button'
         size='sm'
         variant='outline'
-        disabled={disabled || !entry || !layers.length}
+        disabled={disabled || applying || !entry || !layers.length}
         onClick={() => {
           if (!entry) return
-          setUpdated(null)
+          setResult(null)
+          setApplying(true)
           void onApply(entry, layers)
-            .then(setUpdated)
+            .then(setResult)
             .catch(() => undefined)
+            .finally(() => setApplying(false))
         }}
       >
         {t('glossary.applyToTranslations')}
       </Button>
-      {updated !== null && (
-        <span role='status' className='text-xs text-muted-foreground'>
-          {t('glossary.updatedBlocks', { blocks: updated })}
-        </span>
-      )}
+      <span role='status' className='text-xs text-muted-foreground'>
+        {applying
+          ? t('glossary.locating')
+          : result
+            ? t('glossary.applyResult', { updated: result.updated, review: result.review })
+            : t('glossary.locatorModel')}
+      </span>
     </div>
   )
 }

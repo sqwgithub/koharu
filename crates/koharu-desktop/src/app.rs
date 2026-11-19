@@ -20,7 +20,7 @@ use serde::Serialize;
 use tauri::AppHandle;
 use tauri_runtime_cef::CefRuntime;
 use tokio::sync::broadcast::{Receiver, error::RecvError};
-use tokio_util::task::AbortOnDropHandle;
+use tokio_util::{sync::CancellationToken, task::AbortOnDropHandle};
 
 use crate::{
     events::{self, Event},
@@ -44,6 +44,7 @@ pub struct App {
 /// The open project, and what runs on it, which go when it closes.
 pub struct Project {
     pub name: String,
+    pub closing: CancellationToken,
     pub session: Arc<Mutex<Session>>,
     /// The page the canvas shows; `None` when the project has none.
     pub page: Option<PageId>,
@@ -135,6 +136,7 @@ impl App {
             let mut project = self.project.lock();
             let opened = project.insert(Project {
                 name: name.clone(),
+                closing: CancellationToken::new(),
                 session,
                 page,
                 conversation: None,
@@ -157,6 +159,9 @@ impl App {
             let mut project = self.project.lock();
             if let Some(server) = self.mcp.get() {
                 server.open(None);
+            }
+            if let Some(opened) = project.as_ref() {
+                opened.closing.cancel();
             }
             project.take()
         };

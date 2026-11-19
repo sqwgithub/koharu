@@ -13,6 +13,12 @@
     "hidden": "隐藏文字（{{count}}）"
   },
   "review": {
+    "locationConflict": "定位到的文字未通过替换校验，请结合原句核对译名。",
+    "candidate": "术语替换 · {{source}} → {{expected}}",
+    "currentTranslation": "当前译文",
+    "proposedEdit": "拟替换译文",
+    "saveEdit": "保存修改",
+    "keepTranslation": "保留当前译文",
     "uncertainTranslation": "模型标记的存疑译文",
     "confirmTranslation": "确认译文",
     "ink": "待确认的原文字色",
@@ -31,7 +37,9 @@
   },
   "glossary": {
     "applyToTranslations": "应用到已有译文",
-    "updatedBlocks": "已更新 {{blocks}} 个文字块",
+    "locatorModel": "句中位置由术语分析模型判断。",
+    "locating": "正在定位译名…",
+    "applyResult": "已更新 {{updated}} 个文字块，另有 {{review}} 个文字块需在「建议确认」中复核。",
     "manualCandidate": "手动添加译名",
     "removeManualCandidate": "删除手动译名「{{text}}」",
     "fastTranslation": "快速翻译",

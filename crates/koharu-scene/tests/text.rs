@@ -242,9 +242,11 @@ fn apply_candidate_preserves_marks_exclusions_and_undo() -> koharu_scene::Result
     let collision = add_line(&mut session, "お兄さんも弟も", json!("哥哥和弟弟"));
     let already = add_line(&mut session, source, json!("是大哥哥。"));
     let unknown = add_line(&mut session, source, json!("是家里的老大。"));
-    let ambiguous = add_line(&mut session, source, json!("哥哥还是哥哥？"));
+    let ambiguous = add_line(&mut session, "お兄さんです", json!("哥哥还是哥哥？"));
     let stale = add_line(&mut session, "娘", json!("哥哥"));
     let manual_name = add_line(&mut session, source, json!("原来是兄长。"));
+    let exact = add_line(&mut session, source, json!("哥哥"));
+    let hidden = add_line(&mut session, source, json!("哥哥"));
     let locked = add_line(&mut session, source, json!("哥哥"));
     let hidden_page = common::page(&mut session);
     let on_hidden_page = add(
@@ -256,6 +258,7 @@ fn apply_candidate_preserves_marks_exclusions_and_undo() -> koharu_scene::Result
     apply(
         &mut session,
         vec![
+            json!({"op":"update_layer","layer":hidden,"patch":{"visible":false}}),
             json!({"op":"update_layer","layer":locked,"patch":{"locked":true}}),
             json!({"op":"set_page_options","page":hidden_page,"excluded":true}),
         ],
@@ -289,6 +292,8 @@ fn apply_candidate_preserves_marks_exclusions_and_undo() -> koharu_scene::Result
     }]))?;
     let locations = [
         manual_name,
+        exact,
+        hidden,
         locked,
         on_hidden_page,
         changed,
@@ -300,22 +305,136 @@ fn apply_candidate_preserves_marks_exclusions_and_undo() -> koharu_scene::Result
         ambiguous,
         stale,
     ];
-    let ops = session
+    use koharu_scene::CandidateDecision::{Located, Uncertain};
+    let at = |full: &str, name: &str| {
+        let start = full.find(name).unwrap();
+        std::iter::once(start..start + name.len()).collect()
+    };
+    let plan = session
         .project()
-        .apply_candidate(&current, &locations, &[])?;
-    assert_eq!(ops.len(), 2);
+        .candidate_plan(&current, &locations, &[])?;
+    let decisions = [
+        (changed, Located(at("是哥哥！", "哥哥"))),
+        (collision, Located(at("哥哥和弟弟", "哥哥"))),
+        (already, Located(at("是大哥哥。", "大哥哥"))),
+        (unknown, Located(at("是家里的老大。", "老大"))),
+        (
+            ambiguous,
+            Uncertain {
+                reason: "two possible addresses".into(),
+                spans: at("哥哥还是哥哥？", "哥哥"),
+            },
+        ),
+        (manual_name, Located(at("原来是兄长。", "兄长"))),
+    ]
+    .into();
+    let (ops, updated, reviews) = session.project().settle_candidate(&plan, &decisions, &[])?;
+    assert_eq!((updated, reviews), (4, 2));
     session.apply(common::edit(ops))?;
+    assert!(
+        session
+            .project()
+            .settle_candidate(&plan, &decisions, &[])
+            .is_err()
+    );
+    assert_eq!(text(&session, exact).content.text(), "大哥哥");
+    assert_eq!(text(&session, hidden).content.text(), "哥哥");
     assert_eq!(text(&session, manual_name).content.text(), "原来是大哥哥。");
+    assert_eq!(text(&session, unknown).content.text(), "是家里的大哥哥。");
+    assert_eq!(text(&session, collision).content.text(), "哥哥和弟弟");
     assert_eq!(
         marked(&text(&session, changed).content),
         [("是", Some(300)), ("大哥哥", Some(700)), ("！", Some(400))]
     );
+    let again = session
+        .project()
+        .candidate_plan(&current, &locations, &[])?;
+    assert!(again.lines.is_empty());
     assert!(
         session
             .project()
-            .apply_candidate(&current, &locations, &[])?
+            .settle_candidate(&again, &Default::default(), &[])?
+            .0
             .is_empty()
     );
+    let pending = session.project().candidate_reviews(&[])?;
+    let review = pending
+        .iter()
+        .find(|r| r.location.layer == ambiguous)
+        .unwrap();
+    assert_eq!(review.preview.as_deref(), Some("大哥哥还是哥哥？"));
+    assert!(
+        pending
+            .iter()
+            .find(|r| r.location.layer == collision)
+            .unwrap()
+            .preview
+            .is_none()
+    );
+    let protected = GlossaryEntry {
+        source: "です".into(),
+        translation: "哥哥".into(),
+        ..old.clone()
+    };
+    let changed_rules = [protected];
+    let protected_review = session
+        .project()
+        .candidate_reviews(&changed_rules)?
+        .into_iter()
+        .find(|r| r.location.layer == ambiguous)
+        .unwrap();
+    assert!(protected_review.preview.is_none());
+    assert!(
+        session
+            .project()
+            .candidate_review_ops(review, review.preview.as_deref(), &changed_rules)
+            .is_err()
+    );
+    apply(
+        &mut session,
+        vec![json!({"op":"update_layer","layer":ambiguous,"patch":{"visible":false}})],
+    )?;
+    assert_eq!(session.project().candidate_reviews(&[])?.len(), 1);
+    assert!(
+        session
+            .project()
+            .candidate_review_ops(review, Some("大哥哥"), &[])
+            .is_err()
+    );
+    session.undo()?;
+    let dismissed = session.project().candidate_review_ops(review, None, &[])?;
+    session.apply(common::edit(dismissed))?;
+    assert_eq!(text(&session, ambiguous).content.text(), "哥哥还是哥哥？");
+    assert!(
+        session
+            .project()
+            .candidate_plan(&current, &[ambiguous], &[])?
+            .lines
+            .is_empty()
+    );
+    assert_eq!(session.project().candidate_reviews(&[])?.len(), 1);
+    session.undo()?;
+    let resolve = session
+        .project()
+        .candidate_review_ops(review, Some("大哥哥，还是他？"), &[])?;
+    session.apply(common::edit(resolve))?;
+    assert_eq!(text(&session, ambiguous).content.text(), "大哥哥，还是他？");
+    assert_eq!(session.project().candidate_reviews(&[])?.len(), 1);
+    assert!(
+        session
+            .project()
+            .candidate_plan(&current, &[ambiguous], &[])?
+            .lines
+            .is_empty()
+    );
+    assert!(
+        session
+            .project()
+            .candidate_review_ops(review, None, &[])
+            .is_err()
+    );
+    session.undo()?;
+    assert_eq!(session.project().candidate_reviews(&[])?, pending);
     session.undo()?;
     assert_eq!(
         marked(&text(&session, changed).content),
@@ -326,18 +445,21 @@ fn apply_candidate_preserves_marks_exclusions_and_undo() -> koharu_scene::Result
             ("！", Some(400))
         ]
     );
-
-    // A generated alternative which contains the new spelling can be shortened.
     let previous = session.project().glossary().to_vec();
     current.translation = old.translation;
     session.apply(common::edit(vec![Op::SetGlossary {
         previous,
         entries: vec![current.clone(), other],
     }]))?;
-    let ops = session
+    let plan = session
         .project()
-        .apply_candidate(&current, &[already], &[])?;
-    assert_eq!(ops.len(), 1);
+        .candidate_plan(&current, &[already], &[])?;
+    let (ops, updated, _) = session.project().settle_candidate(
+        &plan,
+        &[(already, Located(at("是大哥哥。", "大哥哥")))].into(),
+        &[],
+    )?;
+    assert_eq!(updated, 1);
     session.apply(common::edit(ops))?;
     assert_eq!(text(&session, already).content.text(), "是哥哥。");
     Ok(())

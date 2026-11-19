@@ -13,6 +13,12 @@
     "hidden": "النص المخفي ({{count}})"
   },
   "review": {
+    "locationConflict": "تعذّر التحقق من موضع الاستبدال. راجع المصطلح في الترجمة الحالية.",
+    "candidate": "استبدال المصطلح · {{source}} ← {{expected}}",
+    "currentTranslation": "الترجمة الحالية",
+    "proposedEdit": "التعديل المقترح",
+    "saveEdit": "حفظ التعديل",
+    "keepTranslation": "الإبقاء على الترجمة",
     "uncertainTranslation": "ترجمة طلب النموذج مراجعتها",
     "confirmTranslation": "تأكيد الترجمة",
     "ink": "ألوان النص المكتشفة للمراجعة",
@@ -31,7 +37,9 @@
   },
   "glossary": {
     "applyToTranslations": "تطبيق على الترجمات الحالية",
-    "updatedBlocks": "عدد كتل النص المحدَّثة: {{blocks}}",
+    "locatorModel": "يحدّد نموذج تحليل المصطلحات مواضعها في الجمل.",
+    "locating": "جارٍ تحديد مواضع المصطلحات…",
+    "applyResult": "عدد الكتل المحدَّثة: {{updated}}. عدد الكتل التي تحتاج إلى مراجعة: {{review}}.",
     "manualCandidate": "إضافة ترجمة",
     "removeManualCandidate": "إزالة الترجمة اليدوية «{{text}}»",
     "fastTranslation": "الترجمة السريعة",
