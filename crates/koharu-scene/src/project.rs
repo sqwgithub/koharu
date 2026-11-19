@@ -233,6 +233,11 @@ impl Project {
         self.glossary_input
     }
 
+    /// Whether an asynchronous edit still sees the pixel tiles it read.
+    pub fn same_pixels(&self, earlier: &Self, layer: LayerId) -> bool {
+        self.tiles.get(&layer) == earlier.tiles.get(&layer)
+    }
+
     pub fn has_pixels(&self, layer: LayerId) -> bool {
         self.tiles
             .get(&layer)

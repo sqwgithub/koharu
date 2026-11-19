@@ -317,3 +317,20 @@ pub(crate) fn action(action: &str, model: &str, parameters: Option<Value>) -> Va
     }
     value
 }
+
+/// Include page coordinates, but ignore zero padding around a detector or tile crop.
+fn mask_hash(rect: koharu_scene::Rect, bytes: &[u8]) -> koharu_scene::Hash {
+    let mut hash = blake3::Hasher::new();
+    for (y, row) in bytes.chunks_exact(rect.width as usize).enumerate() {
+        if let (Some(first), Some(last)) = (
+            row.iter().position(|v| *v != 0),
+            row.iter().rposition(|v| *v != 0),
+        ) {
+            hash.update(&(rect.y + y as i32).to_le_bytes());
+            hash.update(&(rect.x + first as i32).to_le_bytes());
+            hash.update(&((last - first + 1) as u32).to_le_bytes());
+            hash.update(&row[first..=last]);
+        }
+    }
+    koharu_scene::Hash::from_bytes(*hash.finalize().as_bytes())
+}
