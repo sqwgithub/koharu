@@ -1,5 +1,20 @@
 {
+  "ink": {
+    "title": "Normalize text colors",
+    "scope": "Applies to {{pages}} included pages. By default, near-black and near-white translation text becomes pure black and white.",
+    "advanced": "Advanced options",
+    "blackThreshold": "Near-black maximum (each RGB channel)",
+    "whiteThreshold": "Near-white minimum (each RGB channel)",
+    "target": "Target color",
+    "invalid": "Use whole numbers from 0 to 255. The black maximum must be below the white minimum.",
+    "restore": "Restore detected colors",
+    "apply": "Normalize colors",
+    "changed": "Text blocks changed: {{blocks}}",
+    "hidden": "Hidden text ({{count}})"
+  },
   "review": {
+    "uncertainTranslation": "Translation flagged by the model",
+    "confirmTranslation": "Confirm translation",
     "ink": "Detected ink to review",
     "inkChoice": {
       "keep": "Keep current color",

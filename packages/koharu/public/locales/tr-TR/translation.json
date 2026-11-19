@@ -1,5 +1,20 @@
 {
+  "ink": {
+    "title": "Metin renklerini birleştir",
+    "scope": "Dahil edilen {{pages}} sayfaya uygulanır. Varsayılan olarak siyaha veya beyaza yakın çeviri metinleri tam siyah veya beyaz olur.",
+    "advanced": "Gelişmiş seçenekler",
+    "blackThreshold": "Siyah üst sınırı (her RGB kanalı)",
+    "whiteThreshold": "Beyaz alt sınırı (her RGB kanalı)",
+    "target": "Hedef renk",
+    "invalid": "0 ile 255 arasında tam sayılar kullanın. Siyah üst sınırı beyaz alt sınırından küçük olmalıdır.",
+    "restore": "Algılanan renkleri geri yükle",
+    "apply": "Renkleri birleştir",
+    "changed": "Değiştirilen metin bloğu: {{blocks}}",
+    "hidden": "Gizli metin ({{count}})"
+  },
   "review": {
+    "uncertainTranslation": "Modelin inceleme istediği çeviri",
+    "confirmTranslation": "Çeviriyi onayla",
     "ink": "İncelenecek metin renkleri",
     "inkChoice": {
       "keep": "Rengi koru",

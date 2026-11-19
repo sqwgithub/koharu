@@ -125,6 +125,13 @@ pub struct TermLocation {
     pub text: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]
+pub struct TranslationUncertainty {
+    pub location: TermLocation,
+    pub translation: String,
+    pub reason: String,
+}
+
 pub const JAPANESE_HONORIFICS: [&str; 6] = ["ちゃん", "さん", "くん", "君", "さま", "様"];
 
 /// The address suffix is not part of the name used as the glossary key.
@@ -208,6 +215,43 @@ pub struct TermIssue {
 }
 
 impl Project {
+    pub fn translation_uncertainties(&self) -> crate::Result<Vec<TranslationUncertainty>> {
+        let mut result = Vec::new();
+        for (index, page) in self.pages().enumerate() {
+            for (id, block) in self.blocks(page.id)? {
+                let Some(marker) = self
+                    .layer(id)?
+                    .attributes
+                    .get("koharu")
+                    .and_then(|attrs| attrs.get("translation_review"))
+                else {
+                    continue;
+                };
+                let Some(reason) = marker["reason"].as_str() else {
+                    continue;
+                };
+                let Some(text) = &block.translation else {
+                    continue;
+                };
+                let source = block.source.content.text();
+                let translation = text.content.text();
+                if marker["source"] == source && marker["translation"] == translation {
+                    result.push(TranslationUncertainty {
+                        location: TermLocation {
+                            page: page.id,
+                            number: index + 1,
+                            layer: id,
+                            text: source,
+                        },
+                        translation,
+                        reason: reason.to_owned(),
+                    });
+                }
+            }
+        }
+        Ok(result)
+    }
+
     pub fn alias_suggestions(&self) -> &[AliasSuggestion] {
         &self.suggestion_reviews.aliases
     }

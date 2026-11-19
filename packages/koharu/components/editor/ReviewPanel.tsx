@@ -57,7 +57,68 @@ export function ReviewPanel({ project }: { project: ProjectId }) {
       setBusy(false)
     }
   }
+  const hiddenInks = visibleInks.filter((ink) => ink.hidden)
+  const inkRow = (ink: InkSuggestion) => {
+    const color = rgbaToHex(ink.detected)
+    const current = ink.translation_fill && rgbaToHex(ink.translation_fill)
+    return (
+      <article key={ink.location.layer} className='space-y-2 border-b py-2'>
+        <button
+          type='button'
+          className='flex items-baseline gap-1 text-start hover:text-primary'
+          onClick={() => void showEvidence(ink.location).catch(() => undefined)}
+        >
+          <ArrowUpRight className='size-3 shrink-0' />
+          {ink.block_number != null && <strong>#{ink.block_number}</strong>}
+          <span className='wrap-anywhere'>{ink.location.text || t('layers.kinds.block')}</span>
+        </button>
+        <div className='flex flex-wrap items-center gap-1.5'>
+          <span
+            aria-hidden
+            className='size-3 rounded-sm border'
+            style={{ backgroundColor: color }}
+          />
+          <code>{color}</code>
+          {current && current !== color && (
+            <span>
+              {t('glossary.translation')} · {current}
+            </span>
+          )}
+        </div>
+        <div className='flex flex-wrap gap-1'>
+          {(['keep', 'black', 'white'] as const).map((choice) => (
+            <Button
+              key={choice}
+              size='xs'
+              variant='outline'
+              disabled={busy}
+              onClick={() => void resolveInk(ink, choice).catch(() => undefined)}
+            >
+              {t(`review.inkChoice.${choice}`)}
+            </Button>
+          ))}
+        </div>
+      </article>
+    )
+  }
   const items = [
+    ...data.uncertainties.map((suggestion) => ({
+      id: JSON.stringify([
+        'uncertainty',
+        suggestion.location.layer,
+        suggestion.location.text,
+        suggestion.translation,
+        suggestion.reason,
+      ]),
+      title: t('review.uncertainTranslation'),
+      reason: suggestion.reason,
+      translation: suggestion.translation,
+      locations: [suggestion.location],
+      previous: '',
+      confirmOnly: true,
+      resolve: (value: string | null) =>
+        call(commands.resolveUncertainty, project, suggestion, value ?? suggestion.translation),
+    })),
     ...data.suggestions.map((suggestion) => ({
       id: JSON.stringify(['alias', suggestion.source, suggestion.canonical]),
       title: t('review.alias', suggestion),
@@ -65,6 +126,7 @@ export function ReviewPanel({ project }: { project: ProjectId }) {
       translation: suggestion.translation,
       locations: suggestion.locations,
       previous: '',
+      confirmOnly: false,
       resolve: (value: string | null) => call(commands.resolveAlias, project, suggestion, value),
     })),
     ...data.corrections.map((correction) => ({
@@ -79,6 +141,7 @@ export function ReviewPanel({ project }: { project: ProjectId }) {
       translation: correction.translation,
       locations: [correction.location],
       previous: correction.previous,
+      confirmOnly: false,
       resolve: (value: string | null) =>
         call(commands.resolveTranslation, project, correction, value),
     })),
@@ -136,16 +199,18 @@ export function ReviewPanel({ project }: { project: ProjectId }) {
                 disabled={busy || !draft.trim()}
                 onClick={() => void resolve(draft.trim()).catch(() => undefined)}
               >
-                {t('review.accept')}
+                {t(item.confirmOnly ? 'review.confirmTranslation' : 'review.accept')}
               </Button>
-              <Button
-                size='xs'
-                variant='outline'
-                disabled={busy}
-                onClick={() => void resolve(null).catch(() => undefined)}
-              >
-                {t('review.dismiss')}
-              </Button>
+              {!item.confirmOnly && (
+                <Button
+                  size='xs'
+                  variant='outline'
+                  disabled={busy}
+                  onClick={() => void resolve(null).catch(() => undefined)}
+                >
+                  {t('review.dismiss')}
+                </Button>
+              )}
             </div>
           </section>
         )
@@ -165,51 +230,15 @@ export function ReviewPanel({ project }: { project: ProjectId }) {
               ))}
             </NativeSelect>
           </label>
-          {visibleInks.map((ink) => {
-            const color = rgbaToHex(ink.detected)
-            const current = ink.translation_fill && rgbaToHex(ink.translation_fill)
-            return (
-              <article key={ink.location.layer} className='space-y-2 border-b py-2'>
-                <button
-                  type='button'
-                  className='flex items-baseline gap-1 text-start hover:text-primary'
-                  onClick={() => void showEvidence(ink.location).catch(() => undefined)}
-                >
-                  <ArrowUpRight className='size-3 shrink-0' />
-                  {ink.block_number != null && <strong>#{ink.block_number}</strong>}
-                  <span className='wrap-anywhere'>
-                    {ink.location.text || t('layers.kinds.block')}
-                  </span>
-                </button>
-                <div className='flex flex-wrap items-center gap-1.5'>
-                  <span
-                    aria-hidden
-                    className='size-3 rounded-sm border'
-                    style={{ backgroundColor: color }}
-                  />
-                  <code>{color}</code>
-                  {current && current !== color && (
-                    <span>
-                      {t('glossary.translation')} · {current}
-                    </span>
-                  )}
-                </div>
-                <div className='flex flex-wrap gap-1'>
-                  {(['keep', 'black', 'white'] as const).map((choice) => (
-                    <Button
-                      key={choice}
-                      size='xs'
-                      variant='outline'
-                      disabled={busy}
-                      onClick={() => void resolveInk(ink, choice).catch(() => undefined)}
-                    >
-                      {t(`review.inkChoice.${choice}`)}
-                    </Button>
-                  ))}
-                </div>
-              </article>
-            )
-          })}
+          {visibleInks.filter((ink) => !ink.hidden).map(inkRow)}
+          {hiddenInks.length > 0 && (
+            <details key={visibleInks[0]!.location.page}>
+              <summary className='cursor-pointer py-1 text-muted-foreground'>
+                {t('ink.hidden', { count: hiddenInks.length })}
+              </summary>
+              {hiddenInks.map(inkRow)}
+            </details>
+          )}
         </section>
       )}
     </ScrollArea>

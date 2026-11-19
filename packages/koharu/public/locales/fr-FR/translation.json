@@ -1,5 +1,20 @@
 {
+  "ink": {
+    "title": "Uniformiser les couleurs du texte",
+    "scope": "Sur les {{pages}} pages incluses, le texte traduit presque noir ou presque blanc devient par défaut noir ou blanc pur.",
+    "advanced": "Options avancées",
+    "blackThreshold": "Maximum pour le noir (chaque canal RVB)",
+    "whiteThreshold": "Minimum pour le blanc (chaque canal RVB)",
+    "target": "Couleur cible",
+    "invalid": "Utilisez des entiers de 0 à 255. Le maximum du noir doit être inférieur au minimum du blanc.",
+    "restore": "Rétablir les couleurs détectées",
+    "apply": "Uniformiser",
+    "changed": "Blocs modifiés : {{blocks}}",
+    "hidden": "Texte masqué ({{count}})"
+  },
   "review": {
+    "uncertainTranslation": "Traduction signalée par le modèle",
+    "confirmTranslation": "Confirmer la traduction",
     "ink": "Couleurs détectées à vérifier",
     "inkChoice": {
       "keep": "Garder la couleur",

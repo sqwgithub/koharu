@@ -1,5 +1,20 @@
 {
+  "ink": {
+    "title": "Unificar colores de texto",
+    "scope": "Se aplica a las {{pages}} páginas incluidas. Por defecto, el texto traducido casi negro o casi blanco pasa a negro o blanco puro.",
+    "advanced": "Opciones avanzadas",
+    "blackThreshold": "Máximo para negro (cada canal RGB)",
+    "whiteThreshold": "Mínimo para blanco (cada canal RGB)",
+    "target": "Color de destino",
+    "invalid": "Use enteros de 0 a 255. El máximo para negro debe ser menor que el mínimo para blanco.",
+    "restore": "Restaurar colores detectados",
+    "apply": "Unificar colores",
+    "changed": "Bloques modificados: {{blocks}}",
+    "hidden": "Texto oculto ({{count}})"
+  },
   "review": {
+    "uncertainTranslation": "Traducción marcada por el modelo",
+    "confirmTranslation": "Confirmar traducción",
     "ink": "Colores detectados por revisar",
     "inkChoice": {
       "keep": "Conservar el color",

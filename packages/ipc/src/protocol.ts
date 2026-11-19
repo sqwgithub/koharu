@@ -350,6 +350,7 @@ export type GlossaryView = {
 	lines: number,
 	suggestions: AliasSuggestion[],
 	corrections: TextSuggestion[],
+	uncertainties: TranslationUncertainty[],
 	inks: InkSuggestion[],
 	candidates: TermCandidate[] | null,
 };
@@ -390,8 +391,17 @@ export type ImportSource = "files" |
 /**  A reader's decision about the detector's ink. The source measurement remains evidence. */
 export type InkChoice = "keep" | "black" | "white";
 
+/**  Channel cutoffs are inclusive sRGB bytes. Alpha is retained. */
+export type InkNormalization = {
+	black_max: number,
+	white_min: number,
+	black: Rgba,
+	white: Rgba,
+};
+
 export type InkSuggestion = {
 	location: TermLocation,
+	hidden: boolean,
 	block_number: number | null,
 	detected: Rgba,
 	translation_fill: Rgba | null,
@@ -944,6 +954,12 @@ export type Transfer = {
  */
 export type Transform = [([number, number, number]), ([number, number, number])];
 
+export type TranslationUncertainty = {
+	location: TermLocation,
+	translation: string,
+	reason: string,
+};
+
 export type TranslatorConfig = {
 	/**  A `vendor/model` reference, as koharu-llm connects one. */
 	model?: string,
@@ -1068,7 +1084,9 @@ getSfxGlossary: () => invoke<SfxGlossary>("get_sfx_glossary", {  }, { headers: h
 editSfxTerm: (languages: string, source: string, previous: string, translation: string | null) => invoke<null>("edit_sfx_term", { languages, source, previous, translation }, { headers: headers() }),
 resolveAlias: (project: ProjectId, suggestion: AliasSuggestion, translation: string | null) => invoke<null>("resolve_alias", { project, suggestion, translation }, { headers: headers() }),
 resolveTranslation: (project: ProjectId, suggestion: TextSuggestion, translation: string | null) => invoke<null>("resolve_translation", { project, suggestion, translation }, { headers: headers() }),
+resolveUncertainty: (project: ProjectId, suggestion: TranslationUncertainty, translation: string) => invoke<null>("resolve_uncertainty", { project, suggestion, translation }, { headers: headers() }),
 resolveInk: (project: ProjectId, suggestion: InkSuggestion, choice: InkChoice) => invoke<null>("resolve_ink", { project, suggestion, choice }, { headers: headers() }),
+normalizeInk: (project: ProjectId, settings: InkNormalization | null) => invoke<number>("normalize_ink", { project, settings }, { headers: headers() }),
 extractSource: (project: ProjectId) => invoke<RunId[]>("extract_source", { project }, { headers: headers() }),
 saveGlossary: (project: ProjectId, previous: GlossaryEntry[], entries: GlossaryEntry[]) => invoke<null>("save_glossary", { project, previous, entries }, { headers: headers() }),
 editManualCandidate: (project: ProjectId, source: string, translation: string, remove: boolean) => invoke<null>("edit_manual_candidate", { project, source, translation, remove }, { headers: headers() }),

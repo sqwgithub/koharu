@@ -1,5 +1,20 @@
 {
+  "ink": {
+    "title": "文字色を統一",
+    "scope": "対象は処理に含めた {{pages}} ページです。初期設定では黒や白に近い訳文の文字色を純黒・純白に揃えます。",
+    "advanced": "詳細設定",
+    "blackThreshold": "黒に近い色の上限（各 RGB チャンネル）",
+    "whiteThreshold": "白に近い色の下限（各 RGB チャンネル）",
+    "target": "変更後の色",
+    "invalid": "0～255 の整数を入力し、黒の上限を白の下限より小さくしてください。",
+    "restore": "検出した文字色に戻す",
+    "apply": "文字色を統一",
+    "changed": "変更したテキストブロック数：{{blocks}}",
+    "hidden": "非表示のテキスト（{{count}}）"
+  },
   "review": {
+    "uncertainTranslation": "モデルが確認を求めた訳文",
+    "confirmTranslation": "訳文を確定",
     "ink": "検出した文字色の確認",
     "inkChoice": {
       "keep": "現在の色を維持",

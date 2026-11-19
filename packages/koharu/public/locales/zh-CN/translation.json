@@ -1,5 +1,20 @@
 {
+  "ink": {
+    "title": "统一字色",
+    "scope": "范围为已纳入的 {{pages}} 页。默认将接近黑色和白色的译文字色分别改为纯黑和纯白。",
+    "advanced": "详细模式",
+    "blackThreshold": "近黑上限（每个 RGB 通道）",
+    "whiteThreshold": "近白下限（每个 RGB 通道）",
+    "target": "目标颜色",
+    "invalid": "阈值须为 0–255 的整数，近黑上限须小于近白下限。",
+    "restore": "还原系统判断的字色",
+    "apply": "统一字色",
+    "changed": "已修改 {{blocks}} 个文字块",
+    "hidden": "隐藏文字（{{count}}）"
+  },
   "review": {
+    "uncertainTranslation": "模型标记的存疑译文",
+    "confirmTranslation": "确认译文",
     "ink": "待确认的原文字色",
     "inkChoice": {
       "keep": "保留当前色",

@@ -238,16 +238,36 @@ mod tests {
                     None,
                     detected([167.0 / 255.0, 167.0 / 255.0, 167.0 / 255.0, 1.0]),
                 ),
-                ("nearblack", None, detected([1.0 / 255.0, 0.0, 0.0, 1.0])),
+                ("dark", None, detected([25.0 / 255.0, 0.0, 0.0, 1.0])),
                 ("color", None, detected([0.3, 0.9, 0.8, 1.0])),
                 ("black", None, detected([0.0, 0.0, 0.0, 1.0])),
                 ("white", None, detected([1.0; 4])),
                 ("manual", None, manual),
+                ("nearblack", None, detected([24.0 / 255.0, 0.0, 0.0, 0.6])),
+                ("nearwhite", None, detected([231.0 / 255.0, 1.0, 1.0, 0.6])),
             ],
         )?;
         placed(&mut session, ids[1], &langid!("zh"))?;
-        let suggestions = session.project().ink_suggestions()?;
+        let suggestions = session.project().ink_suggestions(&[])?;
         assert_eq!(suggestions.len(), 3);
+        let patch = |id: LayerId, patch| Edit {
+            label: "test".into(),
+            ops: vec![Op::UpdateLayer {
+                layer: id.into(),
+                patch,
+            }],
+        };
+        session.apply(patch(ids[0], json!({"visible":false})))?;
+        assert!(session.project().ink_suggestions(&[])?[0].hidden);
+        session.undo()?;
+        assert!(!session.project().ink_suggestions(&[])?[0].hidden);
+        // An older project may have a user-selected fill but no review marker.
+        session.apply(patch(
+            ids[1],
+            json!({"translation":{"style":{"chars":{"fill":[1.,0.,0.,1.]}}}}),
+        ))?;
+        assert_eq!(session.project().ink_suggestions(&[])?.len(), 2);
+        session.undo()?;
         let resolve = |i: usize, choice| Edit {
             label: "review_ink".into(),
             ops: vec![Op::ResolveInk {
@@ -261,13 +281,13 @@ mod tests {
         assert!(session.apply(resolve(2, InkChoice::Black)).is_err());
         session.undo()?;
         assert_eq!(
-            session.project().ink_suggestions()?,
+            session.project().ink_suggestions(&[])?,
             vec![suggestions[2].clone()]
         );
         session.redo()?;
         drop(session);
         let mut session = Session::open(dir.path().join("test.khr"))?;
-        assert!(session.project().ink_suggestions()?.is_empty());
+        assert!(session.project().ink_suggestions(&[])?.is_empty());
         for (i, expected) in [
             Rgba([0.0, 0.0, 0.0, 1.0]),
             Rgba([1.0; 4]),
@@ -284,6 +304,57 @@ mod tests {
                 Some(expected)
             );
         }
+        use koharu_scene::InkNormalization;
+        let settings = InkNormalization {
+            black: Rgba([0.1, 0.3, 0.5, 1.0]),
+            white: Rgba([0.7, 0.5, 0.3, 1.0]),
+            ..Default::default()
+        };
+        let first = session.project().pages().next().unwrap().id;
+        let set_excluded = |excluded| -> Result<Edit> {
+            Ok(Edit {
+                label: "exclude".into(),
+                ops: vec![serde_json::from_value(
+                    json!({"op":"set_page_options","page":first,"excluded":excluded}),
+                )?],
+            })
+        };
+        session.apply(set_excluded(true)?)?;
+        assert_eq!(session.project().normalize_ink(Some(&settings))?.0, 0);
+        session.apply(set_excluded(false)?)?;
+        let (count, ops) = session.project().normalize_ink(Some(&settings))?;
+        assert!(count >= 2);
+        session.apply(Edit {
+            label: "review_ink".into(),
+            ops,
+        })?;
+        assert_eq!(
+            placed(&mut session, ids[6], &langid!("zh"))?
+                .style
+                .chars
+                .fill,
+            Some(Rgba([0.1, 0.3, 0.5, 0.6]))
+        );
+        assert_eq!(
+            placed(&mut session, ids[7], &langid!("zh"))?
+                .style
+                .chars
+                .fill,
+            Some(Rgba([0.7, 0.5, 0.3, 0.6]))
+        );
+        let (_, ops) = session.project().normalize_ink(None)?;
+        session.apply(Edit {
+            label: "review_ink".into(),
+            ops,
+        })?;
+        assert_eq!(
+            placed(&mut session, ids[6], &langid!("zh"))?
+                .style
+                .chars
+                .fill,
+            Some(Rgba([24.0 / 255.0, 0.0, 0.0, 0.6]))
+        );
+        assert!(session.project().ink_suggestions(&[])?.is_empty());
         Ok(())
     }
 
