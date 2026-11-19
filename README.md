@@ -1,6 +1,6 @@
 # Koharu 中文翻译与排版分支
 
-本分支基于 [koharu-rs/koharu](https://github.com/koharu-rs/koharu)，面向日漫汉化中的竖排对白、角色称呼和逐页校对。安装、模型、硬件要求和构建步骤见[上游项目说明](README.upstream.md)。
+本分支基于 [koharu-rs/koharu](https://github.com/koharu-rs/koharu)，用于特化中文翻译的排版。面向日漫汉化中的竖排对白、角色称呼和逐页校对。安装、模型、硬件要求和构建步骤见[上游项目说明](README.upstream.md)。
 
 ## 分支修改
 
