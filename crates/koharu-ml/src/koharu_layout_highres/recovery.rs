@@ -97,9 +97,23 @@ impl Detected {
                     continue;
                 }
             }
-            let crop = DynamicImage::ImageRgb8(crop);
+            let mut crop = DynamicImage::ImageRgb8(crop);
+            let mut local = infer(&crop)?;
+            let (mut x, mut y) = (x, y);
+            // A short column can occupy too little of the balloon to meet the
+            // text threshold even after adjacent lettering has been hidden.
+            if effect.is_none()
+                && !local.0.iter().any(|d| d.label == "text")
+                && let Some(window) = ink_window(crop.as_rgb8().expect("RGB crop"))
+            {
+                let (dx, dy) = (window.left() as u32, window.top() as u32);
+                crop = crop.crop_imm(dx, dy, window.width(), window.height());
+                local = infer(&crop)?;
+                x += dx;
+                y += dy;
+            }
             let pixels = crop.as_rgb8().expect("RGB crop");
-            let local = infer(&crop)?;
+            let (w, h) = pixels.dimensions();
             for mut candidate in local.0.into_iter().filter(|d| d.label == "text") {
                 let [l, t, r, b] = candidate.bbox;
                 // A cut glyph at the crop boundary cannot establish a new block.
@@ -174,6 +188,36 @@ fn lettering(d: &Detection) -> bool {
     matches!(d.label.as_str(), "text" | "onomatopoeia")
 }
 
+/// Frame the remaining strokes with paper on all sides. Isolated scan specks
+/// and fragments of the balloon outline at the crop edge must not set the scale.
+fn ink_window(crop: &RgbImage) -> Option<Rect> {
+    let (w, h) = crop.dimensions();
+    let (mut left, mut top, mut right, mut bottom) = (w, h, 0, 0);
+    for y in 4..h.saturating_sub(5) {
+        for x in 4..w.saturating_sub(5) {
+            if [(x, y), (x + 1, y), (x, y + 1), (x + 1, y + 1)]
+                .into_iter()
+                .all(|(px, py)| crop.get_pixel(px, py).0.iter().all(|&c| c < 150))
+            {
+                left = left.min(x);
+                top = top.min(y);
+                right = right.max(x + 2);
+                bottom = bottom.max(y + 2);
+            }
+        }
+    }
+    if right <= left || bottom <= top {
+        return None;
+    }
+    let margin = (right - left).min(bottom - top).div_ceil(2).max(4);
+    left = left.saturating_sub(margin);
+    top = top.saturating_sub(margin);
+    let width = right.saturating_add(margin).min(w) - left;
+    let height = bottom.saturating_add(margin).min(h) - top;
+    (u64::from(width) * u64::from(height) <= u64::from(w) * u64::from(h) / 2)
+        .then(|| Rect::at(left as i32, top as i32).of_size(width, height))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -225,6 +269,28 @@ mod tests {
         assert_eq!(middle.bbox, [58., 65., 72., 90.]);
         assert_eq!(middle.bubble, Some(0));
         assert!(middle.mask.contains(63, 70));
+        Ok(())
+    }
+
+    #[test]
+    fn a_column_missed_at_balloon_scale_keeps_its_page_coordinates_on_retry() -> Result<()> {
+        let mut page = RgbImage::from_pixel(200, 200, Rgb([255; 3]));
+        draw_filled_rect_mut(&mut page, Rect::at(55, 72).of_size(12, 28), Rgb([0; 3]));
+        draw_filled_rect_mut(&mut page, Rect::at(20, 40).of_size(2, 70), Rgb([0; 3]));
+        page.put_pixel(106, 140, Rgb([0; 3]));
+        let mut scene = Detected(vec![detection("bubble", 20, 30, 100, 120)]);
+        scene.recover_balloon_text(&page, |crop| {
+            if crop.width() == 100 {
+                return Ok(Detected(vec![]));
+            }
+            assert_eq!((crop.width(), crop.height()), (24, 40));
+            Ok(Detected(vec![detection("text", 6, 6, 12, 28)]))
+        })?;
+        let layout = scene.layout(&page);
+        assert_eq!(layout.lettering.len(), 1);
+        assert_eq!(layout.lettering[0].bbox, [55., 72., 67., 100.]);
+        assert_eq!(layout.lettering[0].bubble, Some(0));
+        assert!(layout.lettering[0].mask.contains(61, 85));
         Ok(())
     }
 }
