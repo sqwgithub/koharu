@@ -192,6 +192,12 @@ pub enum Op {
     SetGlossaryCandidates {
         candidates: Vec<Vec<GlossaryEntry>>,
     },
+    #[schemars(skip)]
+    EditManualCandidate {
+        source: String,
+        translation: String,
+        remove: bool,
+    },
     /// Queue possible readings of names for human confirmation. Cite existing OCR blocks.
     SuggestAliases {
         suggestions: Vec<crate::AliasSuggestion>,
@@ -506,6 +512,11 @@ impl Run<'_, '_> {
                 self.project.glossary_candidates = candidates.clone().into();
                 Ok(())
             }
+            Op::EditManualCandidate {
+                source,
+                translation,
+                remove,
+            } => self.edit_manual_candidate(index, source, translation, *remove),
             Op::SuggestAliases { suggestions } => self.suggest_aliases(index, suggestions),
             Op::ResolveAlias {
                 suggestion,

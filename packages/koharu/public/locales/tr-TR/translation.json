@@ -1,5 +1,26 @@
 {
+  "ink": {
+    "title": "Metin renklerini birleştir",
+    "scope": "Dahil edilen {{pages}} sayfaya uygulanır. Varsayılan olarak siyaha veya beyaza yakın çeviri metinleri tam siyah veya beyaz olur.",
+    "advanced": "Gelişmiş seçenekler",
+    "blackThreshold": "Siyah üst sınırı (her RGB kanalı)",
+    "whiteThreshold": "Beyaz alt sınırı (her RGB kanalı)",
+    "target": "Hedef renk",
+    "invalid": "0 ile 255 arasında tam sayılar kullanın. Siyah üst sınırı beyaz alt sınırından küçük olmalıdır.",
+    "restore": "Algılanan renkleri geri yükle",
+    "apply": "Renkleri birleştir",
+    "changed": "Değiştirilen metin bloğu: {{blocks}}",
+    "hidden": "Gizli metin ({{count}})"
+  },
   "review": {
+    "locationConflict": "Değiştirilecek metin doğrulanamadı. Terimi mevcut çeviride kontrol edin.",
+    "candidate": "Terim değişikliği · {{source}} → {{expected}}",
+    "currentTranslation": "Mevcut çeviri",
+    "proposedEdit": "Önerilen değişiklik",
+    "saveEdit": "Değişikliği kaydet",
+    "keepTranslation": "Çeviriyi koru",
+    "uncertainTranslation": "Modelin inceleme istediği çeviri",
+    "confirmTranslation": "Çeviriyi onayla",
     "ink": "İncelenecek metin renkleri",
     "inkChoice": {
       "keep": "Rengi koru",
@@ -15,6 +36,15 @@
     "wiki": "LLM Wiki bağlantısı"
   },
   "glossary": {
+    "applyToTranslations": "Mevcut çevirilere uygula",
+    "locatorModel": "Terim analizi modeli terimleri cümle içinde bulur.",
+    "locating": "Terimler bulunuyor…",
+    "applyResult": "Güncellenen blok sayısı: {{updated}}. İncelenecek blok sayısı: {{review}}.",
+    "manualCandidate": "Çeviri ekle",
+    "removeManualCandidate": "Elle girilen “{{text}}” çevirisini kaldır",
+    "fastTranslation": "Hızlı çeviri",
+    "fastTranslationDescription": "Yinelenen ses efektlerini ayrı gruplar hâlinde çevirir ve genel sözlükteki tam eşleşmeleri kullanır.",
+    "sfxGlossary": "Ses efekti çevirileri",
     "manage": "Proje sözlüğünü yönet",
     "globalTitle": "Genel sözlük",
     "globalScope": "Tüm projelerde geçerlidir. Kaynak metin aynıysa proje girdisi önceliklidir.",
@@ -170,6 +200,7 @@
     "opened": "Açıldığında",
     "steps": {
       "review_ink": "Metin rengini incele",
+      "apply_candidate": "Mevcut çevirilere uygula",
       "edit_glossary": "Terim sözlüğünü düzenle",
       "relink_originals": "Özgün görselleri yeniden bağla",
       "add_text": "Metin ekle",

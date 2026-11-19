@@ -194,7 +194,27 @@ export function GlossaryPanel({ project, active }: { project: ProjectId; active:
             <GlossaryManager
               entries={list}
               candidates={candidates ?? []}
-              disabled={!safe || pipelineBusy}
+              disabled={!safe || busy || pipelineBusy}
+              onEditCandidate={async (source, translation, remove) => {
+                if (!safe) return
+                setBusy(true)
+                try {
+                  await call(commands.editManualCandidate, project, source, translation, remove)
+                  await refresh(glossaryKey)
+                } finally {
+                  setBusy(false)
+                }
+              }}
+              onApplyCandidate={async (entry, locations) => {
+                setBusy(true)
+                try {
+                  const result = await call(commands.applyCandidate, project, entry, locations)
+                  await refresh(glossaryKey)
+                  return result
+                } finally {
+                  setBusy(false)
+                }
+              }}
               onSave={save}
               onLocation={(location) => {
                 setManagerOpen(false)

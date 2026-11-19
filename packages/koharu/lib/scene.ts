@@ -101,7 +101,17 @@ export function setStyle(layers: Layer[], style: TextStyle): Promise<Change> {
         const restyle: Op = { op: 'update_layer', layer: layer.id, patch }
         const spans = letteringOf(layer)?.content ?? []
         const marked = spans.some((span) => keys.some((key) => span.attributes?.[key] != null))
-        if (!marked) return [restyle]
+        const ops: Op[] = [restyle]
+        if (isBlockLayer(layer) && layer.attributes?.c2pa?.detection && style.chars?.fill) {
+          ops.push({
+            op: 'set_attribute',
+            layer: layer.id,
+            namespace: 'koharu',
+            key: 'ink_override',
+            value: style.chars.fill,
+          })
+        }
+        if (!marked) return ops
         const unmarked = spans.map(({ insert, attributes }) => ({
           insert,
           attributes: Object.fromEntries(
@@ -110,7 +120,7 @@ export function setStyle(layers: Layer[], style: TextStyle): Promise<Change> {
             ),
           ),
         }))
-        return [restyle, { op: 'set_rich_text', layer: layer.id, spans: unmarked }]
+        return [...ops, { op: 'set_rich_text', layer: layer.id, spans: unmarked }]
       }),
   )
 }

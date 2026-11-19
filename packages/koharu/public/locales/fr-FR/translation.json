@@ -1,5 +1,26 @@
 {
+  "ink": {
+    "title": "Uniformiser les couleurs du texte",
+    "scope": "Sur les {{pages}} pages incluses, le texte traduit presque noir ou presque blanc devient par défaut noir ou blanc pur.",
+    "advanced": "Options avancées",
+    "blackThreshold": "Maximum pour le noir (chaque canal RVB)",
+    "whiteThreshold": "Minimum pour le blanc (chaque canal RVB)",
+    "target": "Couleur cible",
+    "invalid": "Utilisez des entiers de 0 à 255. Le maximum du noir doit être inférieur au minimum du blanc.",
+    "restore": "Rétablir les couleurs détectées",
+    "apply": "Uniformiser",
+    "changed": "Blocs modifiés : {{blocks}}",
+    "hidden": "Texte masqué ({{count}})"
+  },
   "review": {
+    "locationConflict": "Le texte à remplacer n’a pas pu être validé. Vérifiez le terme dans la traduction actuelle.",
+    "candidate": "Remplacement du terme · {{source}} → {{expected}}",
+    "currentTranslation": "Traduction actuelle",
+    "proposedEdit": "Modification proposée",
+    "saveEdit": "Enregistrer la modification",
+    "keepTranslation": "Garder la traduction",
+    "uncertainTranslation": "Traduction signalée par le modèle",
+    "confirmTranslation": "Confirmer la traduction",
     "ink": "Couleurs détectées à vérifier",
     "inkChoice": {
       "keep": "Garder la couleur",
@@ -15,6 +36,15 @@
     "wiki": "Lien LLM Wiki"
   },
   "glossary": {
+    "applyToTranslations": "Appliquer aux traductions existantes",
+    "locatorModel": "Le modèle d’analyse terminologique repère les termes dans les phrases.",
+    "locating": "Recherche des termes…",
+    "applyResult": "Blocs mis à jour : {{updated}}. À vérifier : {{review}}.",
+    "manualCandidate": "Ajouter une traduction",
+    "removeManualCandidate": "Supprimer la traduction manuelle « {{text}} »",
+    "fastTranslation": "Traduction rapide",
+    "fastTranslationDescription": "Traduit les onomatopées répétées par lots séparés et réutilise les correspondances exactes du glossaire global.",
+    "sfxGlossary": "Traductions des onomatopées",
     "manage": "Gérer le glossaire du projet",
     "globalTitle": "Glossaire global",
     "globalScope": "S’applique à tous les projets. L’entrée du projet est prioritaire si le texte source est identique.",
@@ -170,6 +200,7 @@
     "opened": "À l’ouverture",
     "steps": {
       "review_ink": "Vérifier la couleur du texte",
+      "apply_candidate": "Appliquer aux traductions existantes",
       "edit_glossary": "Modifier le glossaire",
       "relink_originals": "Relier les images originales",
       "add_text": "Ajouter du texte",

@@ -1,5 +1,26 @@
 {
+  "ink": {
+    "title": "Uniformizar cores do texto",
+    "scope": "Aplica-se às {{pages}} páginas incluídas. Por padrão, o texto traduzido quase preto ou quase branco passa a preto ou branco puro.",
+    "advanced": "Opções avançadas",
+    "blackThreshold": "Máximo para preto (cada canal RGB)",
+    "whiteThreshold": "Mínimo para branco (cada canal RGB)",
+    "target": "Cor de destino",
+    "invalid": "Use inteiros de 0 a 255. O máximo para preto deve ser menor que o mínimo para branco.",
+    "restore": "Restaurar cores detectadas",
+    "apply": "Uniformizar cores",
+    "changed": "Blocos alterados: {{blocks}}",
+    "hidden": "Texto oculto ({{count}})"
+  },
   "review": {
+    "locationConflict": "Não foi possível validar o trecho a substituir. Confira o termo na tradução atual.",
+    "candidate": "Substituição de termo · {{source}} → {{expected}}",
+    "currentTranslation": "Tradução atual",
+    "proposedEdit": "Alteração sugerida",
+    "saveEdit": "Salvar alteração",
+    "keepTranslation": "Manter tradução",
+    "uncertainTranslation": "Tradução sinalizada pelo modelo",
+    "confirmTranslation": "Confirmar tradução",
     "ink": "Cores detectadas para revisar",
     "inkChoice": {
       "keep": "Manter a cor",
@@ -15,6 +36,15 @@
     "wiki": "Link da LLM Wiki"
   },
   "glossary": {
+    "applyToTranslations": "Aplicar às traduções existentes",
+    "locatorModel": "O modelo de análise terminológica localiza os termos nas frases.",
+    "locating": "Localizando termos…",
+    "applyResult": "Blocos atualizados: {{updated}}. A revisar: {{review}}.",
+    "manualCandidate": "Adicionar tradução",
+    "removeManualCandidate": "Remover a tradução manual “{{text}}”",
+    "fastTranslation": "Tradução rápida",
+    "fastTranslationDescription": "Traduz onomatopeias repetidas em lotes separados e reutiliza correspondências exatas do glossário global.",
+    "sfxGlossary": "Traduções de onomatopeias",
     "manage": "Gerenciar glossário do projeto",
     "globalTitle": "Glossário global",
     "globalScope": "Vale para todos os projetos. A entrada do projeto tem prioridade quando o texto original é igual.",
@@ -170,6 +200,7 @@
     "opened": "Ao abrir",
     "steps": {
       "review_ink": "Revisar a cor do texto",
+      "apply_candidate": "Aplicar às traduções existentes",
       "edit_glossary": "Editar glossário",
       "relink_originals": "Revincular imagens originais",
       "add_text": "Adicionar texto",

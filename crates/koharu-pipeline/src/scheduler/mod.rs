@@ -16,7 +16,6 @@ use koharu_scene::{PageId, ProjectId};
 use parking_lot::RwLock;
 use petgraph::{Direction::Incoming, stable_graph::NodeIndex};
 use tokio::{
-    runtime::Handle,
     sync::{OwnedSemaphorePermit, Semaphore, mpsc},
     task::{self, JoinError, JoinSet},
     time::{self, Instant},
@@ -105,12 +104,13 @@ impl Scheduler {
     pub(crate) fn spawn(
         config: Arc<RwLock<PipelineConfig>>,
         events: Events,
+        gpu: Gpu,
     ) -> mpsc::UnboundedSender<Command> {
         let (sender, commands) = mpsc::unbounded_channel();
         let scheduler = Self {
             commands,
             events,
-            gpu: Gpu::spawn(Handle::current()),
+            gpu,
             config,
             runs: Vec::new(),
             ahead: Arc::new(Semaphore::new(AHEAD)),

@@ -383,6 +383,16 @@ function TranslatorOptions({
   return (
     <>
       <PreferenceRow
+        title={t('glossary.fastTranslation')}
+        description={t('glossary.fastTranslationDescription')}
+      >
+        <Switch
+          aria-label={t('glossary.fastTranslation')}
+          checked={value.fast_sfx ?? false}
+          onCheckedChange={(fast_sfx) => onChange({ ...value, fast_sfx })}
+        />
+      </PreferenceRow>
+      <PreferenceRow
         title={t('settings.pipeline.translator.vision')}
         description={t('settings.pipeline.translator.visionDescription')}
       >

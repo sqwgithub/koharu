@@ -612,6 +612,32 @@ mod tests {
             label: "analysis".into(),
             ops,
         })?;
+        let manual = |translation: &str, remove| Edit {
+            label: "edit_glossary".into(),
+            ops: vec![Op::EditManualCandidate {
+                source: name.source.clone(),
+                translation: translation.into(),
+                remove,
+            }],
+        };
+        session.apply(manual("Aoki-san", false))?;
+        assert!(session.apply(manual("Aoki", true)).is_err());
+        assert!(session.apply(manual("Aoki-san", false)).is_err());
+        session.apply(manual("Aoki-san", true))?;
+        assert!(session.project().manual_candidates(&name.source).is_empty());
+        session.undo()?;
+        let additional = GlossaryEntry {
+            translation: "Aokee".into(),
+            ..name.clone()
+        };
+        let ops = session
+            .project()
+            .analyzed_glossary(vec![vec![additional]], vec![], vec![]);
+        session.apply(Edit {
+            label: "reanalyze".into(),
+            ops,
+        })?;
+        let expected_groups = session.project().glossary_candidates().to_vec();
         let except = crate::LayerId(crate::Uuid::nil());
         let kept = crate::LayerId(crate::Uuid::max());
         assert!(session.project().keeps_original(&global, except, "KEY"));
@@ -635,7 +661,8 @@ mod tests {
         assert_eq!(session.project().glossary(), &[other, excluded]);
         assert!(!session.project().keeps_original(&global, except, "KEY"));
         assert!(session.project().keeps_original(&global, kept, "KEY"));
-        assert_eq!(session.project().glossary_candidates(), groups);
+        assert_eq!(session.project().glossary_candidates(), expected_groups);
+        assert_eq!(session.project().manual_candidates("青木"), &["Aoki-san"]);
         Ok(())
     }
 

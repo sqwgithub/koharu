@@ -244,7 +244,7 @@ pub(crate) async fn run(mut task: Task, inputs: Inputs) -> Result<(), String> {
             let conversation = inputs
                 .conversation
                 .expect("a translation holds its conversation");
-            translate::translate(&task, config, conversation).await
+            translate::translate(&mut task, config, conversation).await
         }
     };
     match result {

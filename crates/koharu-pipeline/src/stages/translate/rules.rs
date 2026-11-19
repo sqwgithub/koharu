@@ -1,3 +1,4 @@
+use super::TextAnswer;
 use std::collections::BTreeMap;
 
 use koharu_scene::{GlossaryEntry, GlossaryKind, LayerId, matching_terms};
@@ -99,18 +100,30 @@ impl<'a> Rules<'a> {
         (Self { lines }, fields)
     }
 
-    pub(super) fn restore(&self, answers: &[String]) -> Vec<String> {
+    pub(super) fn restore(&self, answers: &[TextAnswer]) -> Vec<TextAnswer> {
         self.lines
             .iter()
             .map(|line| {
-                line.iter()
-                    .map(|part| match *part {
-                        Part::Literal(text) => text,
-                        Part::Translation(index) => answers[index].as_str(),
-                    })
-                    .collect::<String>()
-                    .trim()
-                    .to_owned()
+                let mut text = String::new();
+                let mut reasons = Vec::new();
+                for part in line {
+                    match part {
+                        Part::Literal(value) => text.push_str(value),
+                        Part::Translation(index) => {
+                            let answer = &answers[*index];
+                            text.push_str(&answer.text);
+                            if let Some(reason) = &answer.reason
+                                && !reasons.contains(&reason.as_str())
+                            {
+                                reasons.push(reason.as_str());
+                            }
+                        }
+                    }
+                }
+                TextAnswer {
+                    text: text.trim().to_owned(),
+                    reason: (!reasons.is_empty()).then(|| reasons.join("\n")),
+                }
             })
             .collect()
     }
@@ -143,9 +156,20 @@ mod tests {
         );
         let keys: Vec<_> = fields.iter().map(|(key, _)| key.as_str()).collect();
         assert_eq!(keys, ["1", "2.1", "2.2", "2.3", "3"]);
-        let answers = ["Other line.", "A ", " B ", " C", "Translated freely."].map(str::to_owned);
+        let mut answers = ["Other line.", "A ", " B ", " C", "Translated freely."]
+            .map(|s| TextAnswer::from(s.to_owned()));
+        answers[2].reason = Some("unclear name".into());
+        answers[3].reason = Some("unclear name".into());
+        let restored = rules.restore(&answers);
         assert_eq!(
-            rules.restore(&answers),
+            restored
+                .iter()
+                .map(|a| a.reason.as_deref())
+                .collect::<Vec<_>>(),
+            [None, Some("unclear name"), None, None]
+        );
+        assert_eq!(
+            restored.iter().map(|a| a.text.as_str()).collect::<Vec<_>>(),
             [
                 "Other line.",
                 "A 原文 B 原文 C",

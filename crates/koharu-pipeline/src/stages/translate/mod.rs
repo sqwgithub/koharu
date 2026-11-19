@@ -2,6 +2,8 @@
 
 mod batch;
 mod conversation;
+mod fast;
+pub use fast::SfxGlossary;
 pub(super) mod model;
 mod placement;
 mod rules;
@@ -48,6 +50,8 @@ pub struct TranslatorConfig {
     /// texts, as an image goes with a chat message to OpenAI's and Gemini's
     /// models; only for a model that reads images.
     pub vision: bool,
+    /// Translate repeated sound effects using the global sound-effect glossary.
+    pub fast_sfx: bool,
     /// How much the model reasons before it answers: off, or one of rig's
     /// portable levels after OpenAI's `reasoning_effort`, written as one word;
     /// the model's own default when unset. rig refuses off for a model that
@@ -67,6 +71,7 @@ impl Default for TranslatorConfig {
             target: langid!("en"),
             instructions: String::new(),
             vision: false,
+            fast_sfx: false,
             reasoning: None,
         }
     }
@@ -89,7 +94,7 @@ impl TranslatorConfig {
 /// whatever their form.
 fn system(config: &TranslatorConfig) -> Result<String> {
     let template = formatdoc! {"
-        Translate the manga text in each message into {target}. Each message is a page's texts as a JSON object, numbered in reading order: translate only the values, and never alter the structure or the keys. Each output value must translate only the source text at the same key. Use the other values only to understand the context. Keep incomplete sentences, separate dialogue bubbles, and sound effects in their own values, even when several consecutive values are related. Return a non-empty translation for every input value and output only the translated JSON.",
+        Translate the manga text in each message into {target}. Each message is a page's texts as a JSON object, numbered in reading order: translate only the values, keeping the same keys. Each output value must translate only the source text at the same key. Use the other values only to understand the context. Keep incomplete sentences, separate dialogue bubbles, and sound effects in their own values, even when several consecutive values are related. Return a non-empty translation for every input value and output only the translated JSON.",
         target = name(&config.target)?,
     };
     Ok(match config.instructions.trim() {
@@ -110,6 +115,20 @@ fn target<'de, D: Deserializer<'de>>(deserializer: D) -> Result<LanguageIdentifi
     Ok(target)
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TextAnswer {
+    text: String,
+    reason: Option<String>,
+}
+
+impl From<String> for TextAnswer {
+    fn from(text: String) -> Self {
+        Self { text, reason: None }
+    }
+}
+
+const REVIEW_INSTRUCTION: &str = "If the available context leaves a material ambiguity in meaning, speaker, name, OCR reading, or sound effect, provide your best translation and a concise concrete review reason in the target language. Flag only items that actually need a human decision.";
+
 /// A page's texts, and the page as a JPEG in base 64 when the model sees it.
 struct Page {
     /// Each block and its source's language.
@@ -118,14 +137,20 @@ struct Page {
     image: Option<String>,
     glossary: Vec<GlossaryEntry>,
     effective: Vec<GlossaryEntry>,
-    kept: Vec<(LayerId, LanguageIdentifier, String)>,
+    kept: Vec<(LayerId, LanguageIdentifier, TextAnswer)>,
 }
 
 pub(crate) async fn translate(
-    task: &Task,
+    task: &mut Task,
     config: &PipelineConfig,
     mut conversation: OwnedMutexGuard<Conversation>,
 ) -> Result<()> {
+    if config.translator.fast_sfx {
+        fast::translate(task, config, &mut conversation).await?;
+        if task.members.is_empty() {
+            return Ok(());
+        }
+    }
     if config.translator.batches_pages() {
         return batch::translate(task, config, &mut conversation).await;
     }
@@ -163,7 +188,58 @@ pub(crate) async fn translate(
     }
     let conversation = &mut *conversation;
     conversation.keep(&translator, &effective);
-    let model = match key(Stage::Translate, config) {
+    let model = translation_model(task, config, conversation).await?;
+    let turn = Turn::new(
+        system(&translator)?,
+        &texts,
+        blocks.iter().map(|(layer, _)| *layer),
+        &effective,
+        image.as_deref(),
+        translator.reasoning,
+        &member.cancel,
+    );
+    let Some(translations) = turn
+        .take(Some(conversation), &model)
+        .instrument(info_span!("llm", texts = texts.len()))
+        .await?
+    else {
+        return Err(Stopped.into());
+    };
+    let translated: Vec<_> = blocks
+        .iter()
+        .cloned()
+        .zip(translations)
+        .map(|((block, source), text)| (block, source, text))
+        .chain(kept)
+        .collect();
+    member
+        .apply(Stage::Translate, move |project| {
+            ensure!(
+                project.glossary() == glossary,
+                "the project's glossary changed during translation"
+            );
+            for ((id, language), source) in blocks.iter().zip(texts) {
+                let Content::Block(block) = &project.layer(*id)?.content else {
+                    anyhow::bail!("translated layer is no longer a text block");
+                };
+                ensure!(
+                    block.source.language == *language && block.source.content.text() == source,
+                    "source text changed during translation"
+                );
+            }
+            written(project, translated, &translator, &global)
+        })
+        .await
+}
+
+async fn translation_model(
+    task: &Task,
+    config: &PipelineConfig,
+    conversation: &mut Conversation,
+) -> Result<DynModel<koharu_llm::rig::operation::Completion>> {
+    let translator = &config.translator;
+    let member = &task.members[0];
+    Ok(match key(Stage::Translate, config) {
         // A local model loads on the GPU thread, which only hands it over:
         // its engine runs on a thread of its own, so the turn waits off the
         // GPU thread, and the other stages' models run meanwhile.
@@ -177,40 +253,9 @@ pub(crate) async fn translate(
         }
         None => {
             task.started(&[member]);
-            conversation.hosted(&translator).await?
+            conversation.hosted(translator).await?
         }
-    };
-    let turn = Turn::new(
-        system(&translator)?,
-        &texts,
-        blocks.iter().map(|(layer, _)| *layer),
-        &effective,
-        image.as_deref(),
-        translator.reasoning,
-        &member.cancel,
-    );
-    let Some(translations) = turn
-        .take(conversation, &model)
-        .instrument(info_span!("llm", texts = texts.len()))
-        .await?
-    else {
-        return Err(Stopped.into());
-    };
-    let translated: Vec<(LayerId, LanguageIdentifier, String)> = blocks
-        .into_iter()
-        .zip(translations)
-        .map(|((block, source), text)| (block, source, text))
-        .chain(kept)
-        .collect();
-    member
-        .apply(Stage::Translate, move |project| {
-            ensure!(
-                project.glossary() == glossary,
-                "the project's glossary changed during translation"
-            );
-            written(project, translated, &translator, &global)
-        })
-        .await
+    })
 }
 
 /// The page's texts the task works on, and the page itself when the model
@@ -234,7 +279,7 @@ fn page(member: &Member, vision: bool, global: &[GlossaryEntry]) -> Result<Optio
             }
             let language = block.source.language.clone();
             if project.keeps_original(global, id, &text) {
-                kept.push((id, language, text));
+                kept.push((id, language, text.into()));
                 return None;
             }
             Some(((id, language), text))
@@ -276,7 +321,7 @@ fn sight(scan: &image::DynamicImage) -> Result<String> {
 /// is now.
 fn written(
     project: &Project,
-    translated: Vec<(LayerId, LanguageIdentifier, String)>,
+    translated: Vec<(LayerId, LanguageIdentifier, TextAnswer)>,
     config: &TranslatorConfig,
     global: &[GlossaryEntry],
 ) -> Result<Vec<Op>> {
@@ -294,15 +339,33 @@ fn written(
             // redraw it in another hand.
             let source_text = found.source.content.text();
             let preserved = project.keeps_original(global, block, &source_text);
-            let unchanged = text.trim() == source_text.trim() || preserved;
+            let review = text.reason.map(
+                |reason| json!({"source":source_text, "translation":text.text,"reason":reason}),
+            );
+            let text = text.text;
+            let unchanged = (review.is_none() && text.trim() == source_text.trim()) || preserved;
             let placed = (!unchanged).then(|| placement(project, block, target));
             let mark = (unchanged && !preserved)
                 .then(|| crate::resume::unchanged_translation(&source_text, target));
-            Some((block, source, text, placed, mark))
+            Some((block, source, text, placed, mark, review))
         })
         .collect();
     let mut ops = Vec::new();
-    for (block, source, text, placed, mark) in placed {
+    for (block, source, text, placed, mark, review) in placed {
+        if review.is_some()
+            || project
+                .layer(block)?
+                .attributes
+                .get("koharu")
+                .is_some_and(|attrs| attrs.contains_key("translation_review"))
+        {
+            ops.push(Op::SetAttribute {
+                layer: block.into(),
+                namespace: "koharu".into(),
+                key: "translation_review".into(),
+                value: review,
+            });
+        }
         ops.push(Op::SetAttribute {
             layer: block.into(),
             namespace: "koharu".to_owned(),

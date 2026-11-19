@@ -83,7 +83,7 @@ fn story_reference(
     project: &Project,
     current: &[Line],
     targets: &BTreeSet<LayerId>,
-    target: &LanguageIdentifier,
+    translator: &super::TranslatorConfig,
     preceding: bool,
     mut room: usize,
 ) -> Result<Vec<serde_json::Value>> {
@@ -110,10 +110,13 @@ fn story_reference(
             let Content::Block(block) = &project.layer(layer)?.content else {
                 continue;
             };
+            if translator.fast_sfx && block.role == koharu_scene::Role::Sfx {
+                continue;
+            }
             let Some(text) = block
                 .translation
                 .as_ref()
-                .filter(|text| text.language == *target)
+                .filter(|text| text.language == translator.target)
             else {
                 continue;
             };
@@ -145,6 +148,8 @@ struct Row {
     id: String,
     source: String,
     translation: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    reason: Option<String>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -197,7 +202,7 @@ impl<'a> Batch<'a> {
         cancel: &CancellationToken,
         pending_tokens: usize,
         max_output: u32,
-    ) -> Result<(Vec<String>, Usage)> {
+    ) -> Result<(Vec<super::TextAnswer>, Usage)> {
         if self.fields.is_empty() {
             return Ok((self.rules.restore(&[]), Usage::default()));
         }
@@ -272,7 +277,10 @@ impl<'a> Batch<'a> {
 }
 
 /// A duplicate invalidates both occurrences, even when the first looked valid.
-fn aligned(output: &str, expected: &BTreeMap<&str, &str>) -> Result<BTreeMap<String, String>> {
+fn aligned(
+    output: &str,
+    expected: &BTreeMap<&str, &str>,
+) -> Result<BTreeMap<String, super::TextAnswer>> {
     let reply: Reply = serde_json::from_str(output).context("invalid translation JSON")?;
     let mut seen = BTreeSet::new();
     let mut valid = BTreeMap::new();
@@ -282,8 +290,20 @@ fn aligned(output: &str, expected: &BTreeMap<&str, &str>) -> Result<BTreeMap<Str
             .with_context(|| format!("unexpected translation ID {}", row.id))?;
         if !seen.insert(row.id.clone()) {
             valid.remove(&row.id);
-        } else if row.source == *source && !row.translation.trim().is_empty() {
-            valid.insert(row.id, row.translation);
+        } else if row.source == *source
+            && !row.translation.trim().is_empty()
+            && row
+                .reason
+                .as_ref()
+                .is_none_or(|reason| !reason.trim().is_empty())
+        {
+            valid.insert(
+                row.id,
+                super::TextAnswer {
+                    text: row.translation,
+                    reason: row.reason,
+                },
+            );
         }
     }
     Ok(valid)
@@ -396,8 +416,9 @@ pub(super) async fn translate(
     };
     let targets = lines.iter().map(|line| line.layer).collect();
     let system = format!(
-        "Translate the supplied manga dialogue into {}. Read the texts across pages in story order (P = page, B = block) and use the project history for names, voice and terminology. Translate each text only from its own source. Return JSON with a texts array of objects containing id, source copied exactly, and a nonempty translation. Preserve separate bubbles. Only texts entries are translation targets. Read context_only and previously saved reference entries for context and consistent terminology. The current source takes precedence. When retry_ids is present, return only those IDs.\n\n{}",
+        "Translate the supplied manga dialogue into {}. Read the texts across pages in story order (P = page, B = block) and use the project history for names, voice and terminology. Translate each text only from its own source. Return JSON with a texts array of objects containing id, source copied exactly, and a nonempty translation. Preserve separate bubbles. Only texts entries are translation targets. Read context_only and previously saved reference entries for context and consistent terminology. The current source takes precedence. When retry_ids is present, return only those IDs. {} Put the reason in the optional reason field of the relevant row; use null or omit it for confident rows.\n\n{}",
         name(&translator.target)?,
+        super::REVIEW_INSTRUCTION,
         translator.instructions
     );
     let mut split_page = None;
@@ -430,7 +451,7 @@ pub(super) async fn translate(
                 &live,
                 current,
                 &targets,
-                &translator.target,
+                translator,
                 conversation.context.messages().is_empty(),
                 reference_budget,
             )?;
@@ -458,16 +479,18 @@ pub(super) async fn translate(
         let mut answers = answers.into_iter();
         let rows: Vec<_> = current
             .iter()
-            .map(|line| Row {
-                id: line.id.clone(),
-                source: line.source.clone(),
-                translation: if line.keep {
-                    line.source.clone()
+            .map(|line| {
+                let answer = if line.keep {
+                    super::TextAnswer::from(line.source.clone())
                 } else {
-                    answers
-                        .next()
-                        .expect("rules restore one translation per selected line")
-                },
+                    answers.next().expect("one answer per selected line")
+                };
+                Row {
+                    id: line.id.clone(),
+                    source: line.source.clone(),
+                    translation: answer.text,
+                    reason: answer.reason,
+                }
             })
             .collect();
         let current: Vec<_> = remaining.drain(..end).collect();
@@ -536,7 +559,14 @@ fn commit_batch(
             "the source or translation of {} changed during translation",
             line.id
         );
-        translated.push((line.layer, line.language, row.translation.clone()));
+        translated.push((
+            line.layer,
+            line.language,
+            super::TextAnswer {
+                text: row.translation.clone(),
+                reason: row.reason.clone(),
+            },
+        ));
         committed.push(row);
     }
     if committed.is_empty() {
@@ -609,6 +639,7 @@ mod tests {
                 id: line.id.clone(),
                 source: line.source.clone(),
                 translation: "New".into(),
+                reason: Some("Verify this reading".into()),
             };
             (line, row)
         });
@@ -621,6 +652,10 @@ mod tests {
             unreachable!()
         };
         assert_eq!(block.translation.as_ref().unwrap().content.text(), "New");
+        let reviews = after.translation_uncertainties()?;
+        assert_eq!(reviews.len(), 1);
+        assert_eq!(reviews[0].location.layer, included);
+        assert_eq!(reviews[0].reason, "Verify this reading");
         Ok(())
     }
 
@@ -662,7 +697,7 @@ mod tests {
             &project,
             &selected,
             &BTreeSet::from([layer]),
-            &icu_locale_core::langid!("en"),
+            &super::super::TranslatorConfig::default(),
             true,
             256,
         )?;
@@ -711,7 +746,7 @@ mod tests {
             .collect::<Vec<_>>();
         let valid = aligned(&json!({"texts":shuffled}).to_string(), &expected)?;
         assert_eq!(valid.len(), 22);
-        assert!(valid.iter().all(|(id, text)| id == text));
+        assert!(valid.iter().all(|(id, text)| id == &text.text));
         Ok(())
     }
 
@@ -719,14 +754,20 @@ mod tests {
     fn retries_only_missing_duplicate_or_misaligned_ids() -> Result<()> {
         let expected = BTreeMap::from([("a", "Hello"), ("b", "Hi"), ("c", "Bye"), ("d", "Hello")]);
         let output = json!({"texts":[
-            {"id":"a","source":"Hello","translation":"A"},
+            {"id":"a","source":"Hello","translation":"A","reason":"Unknown speaker"},
             {"id":"b","source":"Hi","translation":"B"},
             {"id":"b","source":"Hi","translation":"Again"},
             {"id":"c","source":"Hi","translation":"C"}
         ]});
         assert_eq!(
             aligned(&output.to_string(), &expected)?,
-            BTreeMap::from([("a".into(), "A".into())])
+            BTreeMap::from([(
+                "a".into(),
+                super::super::TextAnswer {
+                    text: "A".into(),
+                    reason: Some("Unknown speaker".into())
+                }
+            )])
         );
         let extra = json!({"texts":[{"id":"z","source":"Hello","translation":"Extra"}]});
         assert!(aligned(&extra.to_string(), &expected).is_err());

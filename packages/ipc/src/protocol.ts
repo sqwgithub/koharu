@@ -143,6 +143,20 @@ export type Camera = {
 	y: number,
 };
 
+export type CandidateApplication = {
+	updated: number,
+	review: number,
+};
+
+export type CandidateReview = {
+	location: TermLocation,
+	source: string,
+	expected: string,
+	previous: string,
+	preview: string | null,
+	reason: string,
+};
+
 /**  What one edit, undo, or redo changed. */
 export type Change = {
 	revision: Revision,
@@ -350,6 +364,8 @@ export type GlossaryView = {
 	lines: number,
 	suggestions: AliasSuggestion[],
 	corrections: TextSuggestion[],
+	candidate_reviews: CandidateReview[],
+	uncertainties: TranslationUncertainty[],
 	inks: InkSuggestion[],
 	candidates: TermCandidate[] | null,
 };
@@ -390,8 +406,17 @@ export type ImportSource = "files" |
 /**  A reader's decision about the detector's ink. The source measurement remains evidence. */
 export type InkChoice = "keep" | "black" | "white";
 
+/**  Channel cutoffs are inclusive sRGB bytes. Alpha is retained. */
+export type InkNormalization = {
+	black_max: number,
+	white_min: number,
+	black: Rgba,
+	white: Rgba,
+};
+
 export type InkSuggestion = {
 	location: TermLocation,
+	hidden: boolean,
 	block_number: number | null,
 	detected: Rgba,
 	translation_fill: Rgba | null,
@@ -594,7 +619,7 @@ export type Op =
  */
 { op: "write_pixels"; layer: Ref; rect: Rect; pixels: number[] } | 
 /**  Add an imported file, stored once by its content hash. */
-{ op: "add_file"; bytes: number[] } | { op: "set_glossary"; previous: GlossaryEntry[]; entries: GlossaryEntry[] } | { op: "set_glossary_candidates"; candidates: GlossaryEntry[][] } | 
+{ op: "add_file"; bytes: number[] } | { op: "set_glossary"; previous: GlossaryEntry[]; entries: GlossaryEntry[] } | { op: "set_glossary_candidates"; candidates: GlossaryEntry[][] } | { op: "edit_manual_candidate"; source: string; translation: string; remove: boolean } | 
 /**  Queue possible readings of names for human confirmation. Cite existing OCR blocks. */
 { op: "suggest_aliases"; suggestions: AliasSuggestion[] } | { op: "resolve_alias"; suggestion: AliasSuggestion; translation: string | null } | { op: "resolve_ink"; suggestion: InkSuggestion; choice: InkChoice } | 
 /**  Queue a proposed correction to the cited block's existing translation for human review. */
@@ -787,6 +812,10 @@ export type Role = "text" | "sfx";
 /**  A run, numbered in the order runs were asked for. */
 export type RunId = number;
 
+export type SfxGlossary = {
+	languages?: { [key in string]: { [key in string]: string } },
+};
+
 /**  A vector path with an optional fill and stroke, in page coordinates. */
 export type Shape = {
 	path: Path,
@@ -859,6 +888,7 @@ export type Target =
 } }) & { blocks?: never; pages?: never };
 
 export type TermCandidate = {
+	manual: string[],
 	entries: GlossaryEntry[],
 	locations: TermLocation[],
 };
@@ -939,6 +969,12 @@ export type Transfer = {
  */
 export type Transform = [([number, number, number]), ([number, number, number])];
 
+export type TranslationUncertainty = {
+	location: TermLocation,
+	translation: string,
+	reason: string,
+};
+
 export type TranslatorConfig = {
 	/**  A `vendor/model` reference, as koharu-llm connects one. */
 	model?: string,
@@ -956,6 +992,8 @@ export type TranslatorConfig = {
 	 *  models; only for a model that reads images.
 	 */
 	vision?: boolean,
+	/**  Translate repeated sound effects using the global sound-effect glossary. */
+	fast_sfx?: boolean,
 	/**
 	 *  How much the model reasons before it answers: off, or one of rig's
 	 *  portable levels after OpenAI's `reasoning_effort`, written as one word;
@@ -1056,11 +1094,19 @@ import: (source: ImportSource) => invoke<null>("import", { source }, { headers: 
 /** Picks where the open project's pages go, and writes them there. `labels` names a PSD's layers the scene names nothing, in the interface's language. */
 export: (format: ExportFormat, labels: Labels) => invoke<null>("export", { format, labels }, { headers: headers() }),
 getGlossary: () => invoke<GlossaryView>("get_glossary", {  }, { headers: headers() }),
+getSfxGlossary: () => invoke<SfxGlossary>("get_sfx_glossary", {  }, { headers: headers() }),
+/** Apply one explicit edit without overwriting other translations learned in the meantime. */
+editSfxTerm: (languages: string, source: string, previous: string, translation: string | null) => invoke<null>("edit_sfx_term", { languages, source, previous, translation }, { headers: headers() }),
 resolveAlias: (project: ProjectId, suggestion: AliasSuggestion, translation: string | null) => invoke<null>("resolve_alias", { project, suggestion, translation }, { headers: headers() }),
 resolveTranslation: (project: ProjectId, suggestion: TextSuggestion, translation: string | null) => invoke<null>("resolve_translation", { project, suggestion, translation }, { headers: headers() }),
+resolveCandidateReview: (project: ProjectId, suggestion: CandidateReview, translation: string | null) => invoke<null>("resolve_candidate_review", { project, suggestion, translation }, { headers: headers() }),
+resolveUncertainty: (project: ProjectId, suggestion: TranslationUncertainty, translation: string) => invoke<null>("resolve_uncertainty", { project, suggestion, translation }, { headers: headers() }),
 resolveInk: (project: ProjectId, suggestion: InkSuggestion, choice: InkChoice) => invoke<null>("resolve_ink", { project, suggestion, choice }, { headers: headers() }),
+normalizeInk: (project: ProjectId, settings: InkNormalization | null) => invoke<number>("normalize_ink", { project, settings }, { headers: headers() }),
 extractSource: (project: ProjectId) => invoke<RunId[]>("extract_source", { project }, { headers: headers() }),
 saveGlossary: (project: ProjectId, previous: GlossaryEntry[], entries: GlossaryEntry[]) => invoke<null>("save_glossary", { project, previous, entries }, { headers: headers() }),
+applyCandidate: (project: ProjectId, entry: GlossaryEntry, locations: LayerId[]) => invoke<CandidateApplication>("apply_candidate", { project, entry, locations }, { headers: headers() }),
+editManualCandidate: (project: ProjectId, source: string, translation: string, remove: boolean) => invoke<null>("edit_manual_candidate", { project, source, translation, remove }, { headers: headers() }),
 exportSource: () => invoke<null>("export_source", {  }, { headers: headers() }),
 analyzeGlossary: (project: ProjectId) => invoke<RunId>("analyze_glossary", { project }, { headers: headers() }),
 /** The canvas element's rectangle, in CSS pixels from the window's corner. */

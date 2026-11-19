@@ -1,7 +1,10 @@
 //! Extracts the project's saved source text in parallel batches and reviews
 //! conflicting candidates before the translation stage uses them.
 
+mod locate;
 mod readings;
+
+pub(crate) use locate::locate;
 
 use std::{
     borrow::Cow,
@@ -177,25 +180,8 @@ async fn analyze_pages(
         task.started(&[member]);
         model::load(reference, false).await?
     };
-    ensure!(
-        model
-            .spec()
-            .is_none_or(|spec| spec.details.kind.as_deref() != Some(koharu_llm::TRANSLATION)),
-        "choose a general-purpose model to analyze terminology",
-    );
+    let batch_budget = batch_budget(&model, hosted)?;
     let reasoning = config.glossary_analysis.reasoning;
-    let spec = model.spec();
-    let budget = if hosted { HOSTED_TOKENS } else { LOCAL_TOKENS };
-    let batch_budget = budget
-        .min(
-            spec.and_then(|spec| spec.input_limit())
-                .map_or(budget, |limit| limit as usize),
-        )
-        .min(
-            spec.and_then(|spec| spec.context_window)
-                .map_or(budget, |limit| limit as usize / 2),
-        )
-        .max(1);
     let client = Requests {
         task,
         model: &model,
@@ -405,6 +391,27 @@ async fn analyze_pages(
     Ok(())
 }
 
+fn batch_budget(model: &DynModel<Completion>, hosted: bool) -> Result<usize> {
+    ensure!(
+        model
+            .spec()
+            .is_none_or(|spec| spec.details.kind.as_deref() != Some(koharu_llm::TRANSLATION)),
+        "choose a general-purpose model to analyze terminology",
+    );
+    let spec = model.spec();
+    let budget = if hosted { HOSTED_TOKENS } else { LOCAL_TOKENS };
+    Ok(budget
+        .min(
+            spec.and_then(|spec| spec.input_limit())
+                .map_or(budget, |limit| limit as usize),
+        )
+        .min(
+            spec.and_then(|spec| spec.context_window)
+                .map_or(budget, |limit| limit as usize / 2),
+        )
+        .max(1))
+}
+
 struct Requests<'a> {
     task: &'a Task,
     model: &'a DynModel<Completion>,
@@ -449,7 +456,7 @@ impl Requests<'_> {
                 let batch = index + 1;
                 let started = Instant::now();
                 info!(run = member.run.0, ?phase, batch, total, "glossary batch started");
-                let result = self.ask(instruction, schema, &input)
+                let result = ask(self.model, self.reasoning, instruction, schema, &input)
                     .instrument(info_span!("glossary request", run = member.run.0, ?phase, batch))
                     .await;
                 let elapsed_seconds = started.elapsed().as_secs_f64();
@@ -487,37 +494,38 @@ impl Requests<'_> {
             });
         Ok(Collected { results, failure })
     }
+}
 
-    async fn ask<T: DeserializeOwned>(
-        &self,
-        instruction: &str,
-        schema: &schemars::Schema,
-        input: &str,
-    ) -> Result<T> {
-        let request = || async {
-            let output = koharu_llm::answer(
-                self.model,
-                schema.clone(),
-                instruction,
-                input.to_owned(),
-                self.reasoning,
-            )
-            .await?;
-            let output = output.trim();
-            let json = output
-                .strip_prefix("```json")
-                .and_then(|text| text.strip_suffix("```"))
-                .unwrap_or(output);
-            serde_json::from_str(json).context("invalid glossary response")
-        };
-        match request().await {
-            Err(error) if retryable(&error) => {
-                warn!(error = %format_args!("{error:#}"), "retrying glossary batch");
-                tokio::time::sleep(Duration::from_secs(1)).await;
-                request().await
-            }
-            result => result,
+async fn ask<T: DeserializeOwned>(
+    model: &DynModel<Completion>,
+    reasoning: Option<Reasoning>,
+    instruction: &str,
+    schema: &schemars::Schema,
+    input: &str,
+) -> Result<T> {
+    let request = || async {
+        let output = koharu_llm::answer(
+            model,
+            schema.clone(),
+            instruction,
+            input.to_owned(),
+            reasoning,
+        )
+        .await?;
+        let output = output.trim();
+        let json = output
+            .strip_prefix("```json")
+            .and_then(|text| text.strip_suffix("```"))
+            .unwrap_or(output);
+        serde_json::from_str(json).context("invalid glossary response")
+    };
+    match request().await {
+        Err(error) if retryable(&error) => {
+            warn!(error = %format_args!("{error:#}"), "retrying glossary batch");
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            request().await
         }
+        result => result,
     }
 }
 

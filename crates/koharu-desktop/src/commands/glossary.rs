@@ -22,6 +22,8 @@ pub struct GlossaryView {
     lines: usize,
     suggestions: Vec<AliasSuggestion>,
     corrections: Vec<TextSuggestion>,
+    candidate_reviews: Vec<koharu_scene::CandidateReview>,
+    uncertainties: Vec<koharu_scene::TranslationUncertainty>,
     inks: Vec<koharu_scene::InkSuggestion>,
     candidates: Option<Vec<TermCandidate>>,
 }
@@ -57,6 +59,12 @@ pub fn get_glossary(app: State<'_, Arc<App>>) -> Result<GlossaryView> {
                     })
                     .collect();
                 Some(TermCandidate {
+                    manual: project
+                        .manual_candidates(&first.source)
+                        .iter()
+                        .filter(|text| !entries.iter().any(|e| &e.translation == *text))
+                        .cloned()
+                        .collect(),
                     entries: entries.clone(),
                     locations,
                 })
@@ -65,14 +73,17 @@ pub fn get_glossary(app: State<'_, Arc<App>>) -> Result<GlossaryView> {
         candidates.sort_by_key(|entry| std::cmp::Reverse(entry.locations.len()));
         candidates
     });
+    let global = koharu_config::get::<PipelineConfig>()?.glossary;
     Ok(GlossaryView {
         project: project.id(),
         entries: project.glossary().to_vec(),
-        issues: project.check_glossary(&koharu_config::get::<PipelineConfig>()?.glossary)?,
+        issues: project.check_glossary(&global)?,
         lines: lines.len(),
         suggestions: project.alias_suggestions().to_vec(),
         corrections: project.text_suggestions().to_vec(),
-        inks: project.ink_suggestions()?,
+        candidate_reviews: project.candidate_reviews(&global)?,
+        uncertainties: project.translation_uncertainties()?,
+        inks: project.ink_suggestions(&global)?,
         candidates,
     })
 }
@@ -146,6 +157,114 @@ pub fn save_glossary(
     Ok(())
 }
 
+#[derive(Serialize, Type)]
+pub struct CandidateApplication {
+    updated: usize,
+    review: usize,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn apply_candidate(
+    app: State<'_, Arc<App>>,
+    project: ProjectId,
+    entry: GlossaryEntry,
+    locations: Vec<koharu_scene::LayerId>,
+) -> Result<CandidateApplication> {
+    let (snapshot, closing) = {
+        let opened = app.project.lock();
+        let opened = opened.as_ref().context("no project is open")?;
+        let session = opened.session.lock();
+        if session.id() != project {
+            return Err(anyhow::anyhow!("the open project changed").into());
+        }
+        (session.project(), opened.closing.clone())
+    };
+    let config = koharu_config::get::<PipelineConfig>()?;
+    let (config, entry, plan) = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
+        let plan = snapshot.candidate_plan(&entry, &locations, &config.glossary)?;
+        Ok((config, entry, plan))
+    })
+    .await??;
+    let decisions = tokio::select! {
+        biased;
+        _ = closing.cancelled() => return Err(anyhow::anyhow!("the open project changed").into()),
+        result = app.pipeline.locate_term(&config, &entry, &plan.lines) => result?,
+    };
+    let app = Arc::clone(&app);
+    Ok(tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
+        let opened = app.project.lock();
+        let opened = opened.as_ref().context("no project is open")?;
+        anyhow::ensure!(!closing.is_cancelled(), "the open project changed");
+        let current = koharu_config::get::<PipelineConfig>()?;
+        anyhow::ensure!(
+            current.translator.target == config.translator.target,
+            "the translation language changed"
+        );
+        let mut session = opened.session.lock();
+        let (ops, updated, review) =
+            session
+                .project()
+                .settle_candidate(&plan, &decisions, &current.glossary)?;
+        if !ops.is_empty() {
+            session.apply(Edit {
+                label: "apply_candidate".into(),
+                ops,
+            })?;
+        }
+        Ok(CandidateApplication { updated, review })
+    })
+    .await??)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn resolve_candidate_review(
+    app: State<'_, Arc<App>>,
+    project: ProjectId,
+    suggestion: koharu_scene::CandidateReview,
+    translation: Option<String>,
+) -> Result<()> {
+    let opened = app.project.lock();
+    let opened = opened.as_ref().context("no project is open")?;
+    let mut session = opened.session.lock();
+    if session.id() != project {
+        return Err(anyhow::anyhow!("the open project changed").into());
+    }
+    let global = koharu_config::get::<PipelineConfig>()?.glossary;
+    let ops =
+        session
+            .project()
+            .candidate_review_ops(&suggestion, translation.as_deref(), &global)?;
+    if !ops.is_empty() {
+        session.apply(Edit {
+            label: "apply_candidate".into(),
+            ops,
+        })?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn edit_manual_candidate(
+    app: State<'_, Arc<App>>,
+    project: ProjectId,
+    source: String,
+    translation: String,
+    remove: bool,
+) -> Result<()> {
+    resolve_review(
+        &app,
+        project,
+        Op::EditManualCandidate {
+            source,
+            translation,
+            remove,
+        },
+    )
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn resolve_alias(
@@ -162,6 +281,54 @@ pub fn resolve_alias(
             translation,
         },
     )
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn resolve_uncertainty(
+    app: State<'_, Arc<App>>,
+    project: ProjectId,
+    suggestion: koharu_scene::TranslationUncertainty,
+    translation: String,
+) -> Result<()> {
+    let opened = app.project.lock();
+    let mut session = opened
+        .as_ref()
+        .context("no project is open")?
+        .session
+        .lock();
+    if session.id() != project {
+        return Err(anyhow::anyhow!("open project changed").into());
+    }
+    if translation.trim().is_empty() {
+        return Err(anyhow::anyhow!("empty translation").into());
+    }
+    if !session
+        .project()
+        .translation_uncertainties()?
+        .contains(&suggestion)
+    {
+        return Err(anyhow::anyhow!("translation review changed").into());
+    }
+    let layer = suggestion.location.layer;
+    let mut ops = Vec::new();
+    if translation != suggestion.translation {
+        ops.push(Op::SetText {
+            layer: layer.into(),
+            text: translation,
+        });
+    }
+    ops.push(Op::SetAttribute {
+        layer: layer.into(),
+        namespace: "koharu".into(),
+        key: "translation_review".into(),
+        value: None,
+    });
+    session.apply(Edit {
+        label: "set_text".into(),
+        ops,
+    })?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -191,6 +358,36 @@ pub fn resolve_ink(
     choice: koharu_scene::InkChoice,
 ) -> Result<()> {
     resolve_review(&app, project, Op::ResolveInk { suggestion, choice })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn normalize_ink(
+    app: State<'_, Arc<App>>,
+    project: ProjectId,
+    settings: Option<koharu_scene::InkNormalization>,
+) -> Result<usize> {
+    let app = Arc::clone(&app);
+    Ok(
+        tokio::task::spawn_blocking(move || -> anyhow::Result<usize> {
+            let opened = app.project.lock();
+            let mut session = opened
+                .as_ref()
+                .context("no project is open")?
+                .session
+                .lock();
+            anyhow::ensure!(session.id() == project, "the open project changed");
+            let (count, ops) = session.project().normalize_ink(settings.as_ref())?;
+            if !ops.is_empty() {
+                session.apply(Edit {
+                    label: "review_ink".into(),
+                    ops,
+                })?;
+            }
+            Ok(count)
+        })
+        .await??,
+    )
 }
 
 fn resolve_review(app: &App, project: ProjectId, op: Op) -> Result<()> {
@@ -256,6 +453,7 @@ pub async fn export_source(app: State<'_, Arc<App>>, window: Window<CefRuntime>)
 
 #[derive(Serialize, Type)]
 pub struct TermCandidate {
+    manual: Vec<String>,
     entries: Vec<GlossaryEntry>,
     locations: Vec<TermLocation>,
 }
@@ -276,4 +474,46 @@ pub fn analyze_glossary(app: State<'_, Arc<App>>, project: ProjectId) -> Result<
             config: None,
         },
     )?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_sfx_glossary() -> Result<koharu_pipeline::SfxGlossary> {
+    Ok(koharu_config::get()?)
+}
+
+/// Apply one explicit edit without overwriting other translations learned in the meantime.
+#[tauri::command]
+#[specta::specta]
+pub fn edit_sfx_term(
+    languages: String,
+    source: String,
+    previous: String,
+    translation: Option<String>,
+) -> Result<()> {
+    if translation.as_ref().is_some_and(|v| v.trim().is_empty()) {
+        return Err(anyhow::anyhow!("empty sound-effect translation").into());
+    }
+    let mut applied = false;
+    koharu_config::update(|table: &mut koharu_pipeline::SfxGlossary| {
+        let Some(entries) = table.languages.get_mut(&languages) else {
+            return;
+        };
+        if entries.get(&source) != Some(&previous) {
+            return;
+        }
+        if let Some(value) = translation {
+            entries.insert(source, value.trim().into());
+        } else {
+            entries.remove(&source);
+        }
+        if entries.is_empty() {
+            table.languages.remove(&languages);
+        }
+        applied = true;
+    })?;
+    if !applied {
+        return Err(anyhow::anyhow!("sound-effect entry changed; refresh the glossary").into());
+    }
+    Ok(())
 }

@@ -1,5 +1,26 @@
 {
+  "ink": {
+    "title": "Normalize text colors",
+    "scope": "Applies to {{pages}} included pages. By default, near-black and near-white translation text becomes pure black and white.",
+    "advanced": "Advanced options",
+    "blackThreshold": "Near-black maximum (each RGB channel)",
+    "whiteThreshold": "Near-white minimum (each RGB channel)",
+    "target": "Target color",
+    "invalid": "Use whole numbers from 0 to 255. The black maximum must be below the white minimum.",
+    "restore": "Restore detected colors",
+    "apply": "Normalize colors",
+    "changed": "Text blocks changed: {{blocks}}",
+    "hidden": "Hidden text ({{count}})"
+  },
   "review": {
+    "locationConflict": "The located text could not be safely replaced. Check the term in the current translation.",
+    "candidate": "Term replacement · {{source}} → {{expected}}",
+    "currentTranslation": "Current translation",
+    "proposedEdit": "Proposed edit",
+    "saveEdit": "Save edit",
+    "keepTranslation": "Keep translation",
+    "uncertainTranslation": "Translation flagged by the model",
+    "confirmTranslation": "Confirm translation",
     "ink": "Detected ink to review",
     "inkChoice": {
       "keep": "Keep current color",
@@ -15,6 +36,15 @@
     "wiki": "LLM Wiki link"
   },
   "glossary": {
+    "applyToTranslations": "Apply to existing translations",
+    "locatorModel": "The terminology analysis model locates terms within sentences.",
+    "locating": "Locating terms…",
+    "applyResult": "Updated text blocks: {{updated}}. Flagged for review: {{review}}.",
+    "manualCandidate": "Add a translation",
+    "removeManualCandidate": "Remove manual translation “{{text}}”",
+    "fastTranslation": "Fast translation",
+    "fastTranslationDescription": "Translate repeated sound effects in separate batches and reuse exact matches from the global glossary.",
+    "sfxGlossary": "Sound-effect translations",
     "manage": "Manage project glossary",
     "globalTitle": "Global glossary",
     "globalScope": "Applies across projects. A project entry takes precedence when the source text is the same.",
@@ -170,6 +200,7 @@
     "opened": "Opened",
     "steps": {
       "review_ink": "Review ink color",
+      "apply_candidate": "Apply to existing translations",
       "edit_glossary": "Edit glossary",
       "relink_originals": "Relink original images",
       "add_text": "Add text",

@@ -1,5 +1,26 @@
 {
+  "ink": {
+    "title": "Unificar colores de texto",
+    "scope": "Se aplica a las {{pages}} páginas incluidas. Por defecto, el texto traducido casi negro o casi blanco pasa a negro o blanco puro.",
+    "advanced": "Opciones avanzadas",
+    "blackThreshold": "Máximo para negro (cada canal RGB)",
+    "whiteThreshold": "Mínimo para blanco (cada canal RGB)",
+    "target": "Color de destino",
+    "invalid": "Use enteros de 0 a 255. El máximo para negro debe ser menor que el mínimo para blanco.",
+    "restore": "Restaurar colores detectados",
+    "apply": "Unificar colores",
+    "changed": "Bloques modificados: {{blocks}}",
+    "hidden": "Texto oculto ({{count}})"
+  },
   "review": {
+    "locationConflict": "No se ha podido validar el texto que se va a sustituir. Revisa el término en la traducción actual.",
+    "candidate": "Sustitución de término · {{source}} → {{expected}}",
+    "currentTranslation": "Traducción actual",
+    "proposedEdit": "Cambio propuesto",
+    "saveEdit": "Guardar cambio",
+    "keepTranslation": "Conservar traducción",
+    "uncertainTranslation": "Traducción marcada por el modelo",
+    "confirmTranslation": "Confirmar traducción",
     "ink": "Colores detectados por revisar",
     "inkChoice": {
       "keep": "Conservar el color",
@@ -15,6 +36,15 @@
     "wiki": "Enlace a LLM Wiki"
   },
   "glossary": {
+    "applyToTranslations": "Aplicar a las traducciones existentes",
+    "locatorModel": "El modelo de análisis terminológico localiza los términos dentro de las frases.",
+    "locating": "Localizando términos…",
+    "applyResult": "Bloques actualizados: {{updated}}. Pendientes de revisión: {{review}}.",
+    "manualCandidate": "Añadir traducción",
+    "removeManualCandidate": "Eliminar la traducción manual «{{text}}»",
+    "fastTranslation": "Traducción rápida",
+    "fastTranslationDescription": "Traduce las onomatopeyas repetidas en lotes separados y reutiliza las coincidencias exactas del glosario global.",
+    "sfxGlossary": "Traducciones de onomatopeyas",
     "manage": "Gestionar glosario del proyecto",
     "globalTitle": "Glosario global",
     "globalScope": "Se aplica a todos los proyectos. La entrada del proyecto tiene prioridad si el texto original coincide.",
@@ -170,6 +200,7 @@
     "opened": "Al abrir",
     "steps": {
       "review_ink": "Revisar el color de texto",
+      "apply_candidate": "Aplicar a las traducciones existentes",
       "edit_glossary": "Editar glosario",
       "relink_originals": "Volver a enlazar imágenes originales",
       "add_text": "Añadir texto",

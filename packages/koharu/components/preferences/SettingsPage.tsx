@@ -39,6 +39,8 @@ import {
   SelectValue,
 } from '@koharu/ui/components/select'
 
+import { SoundEffectGlossary } from './SoundEffectGlossary'
+
 const tabs = [
   ['appearance', Palette],
   ['pipeline', Cpu],
@@ -177,6 +179,7 @@ export function SettingsPage() {
                     }}
                   />
                 </div>
+                <SoundEffectGlossary />
               </section>
             )}
           </div>
