@@ -1,7 +1,7 @@
 //! Multi-page text translation. Model-facing page/block labels belong to the
 //! input snapshot. Only that snapshot's database IDs can address an edit.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use anyhow::{Context as _, Result, ensure};
 use icu_locale_core::LanguageIdentifier;
@@ -401,13 +401,19 @@ pub(super) async fn translate(
         translator.instructions
     );
     let mut split_page = None;
-    let mut remaining = lines.as_slice();
+    let mut remaining = VecDeque::from(lines);
     while !remaining.is_empty() {
         if member.cancel.is_cancelled() {
             return Err(Stopped.into());
         }
-        let (end, mut batch, mut request_tokens) = budget.next(remaining, &glossary, &system)?;
-        let current = &remaining[..end];
+        let live = member.session.lock().project();
+        remaining.retain(|line| live.page(line.page).is_ok_and(|page| !page.excluded));
+        if remaining.is_empty() {
+            break;
+        }
+        let pending = remaining.make_contiguous();
+        let (end, mut batch, mut request_tokens) = budget.next(pending, &glossary, &system)?;
+        let current = &pending[..end];
         let pages: BTreeSet<_> = current.iter().map(|line| line.page).collect();
         let starting = task
             .members
@@ -415,13 +421,13 @@ pub(super) async fn translate(
             .filter(|m| pages.contains(&m.page) && Some(m.page) != split_page)
             .collect::<Vec<_>>();
         task.started(&starting);
-        split_page = remaining
+        split_page = pending
             .get(end)
             .map(|line| line.page)
             .filter(|page| pages.contains(page));
         if !batch.fields.is_empty() {
             let reference = story_reference(
-                &project,
+                &live,
                 current,
                 &targets,
                 &translator.target,
@@ -464,60 +470,12 @@ pub(super) async fn translate(
                 },
             })
             .collect();
-        let sources: Vec<_> = current
-            .iter()
-            .map(|line| json!({"id": line.id, "source": line.source}))
-            .collect();
-        let messages = vec![
-            Message::user(json!({"texts": sources}).to_string()),
-            Message::assistant(json!({"texts": rows}).to_string()),
-        ];
-        let current = current.to_vec();
+        let current: Vec<_> = remaining.drain(..end).collect();
         let glossary = project.glossary().to_vec();
-        let translator = translator.clone();
-        let global = config.glossary.clone();
-        let session = member.session.clone();
-        let cancel = member.cancel.clone();
-        tokio::task::spawn_blocking(move || -> Result<()> {
-            let mut session = session.lock();
-            if cancel.is_cancelled() {
-                return Err(Stopped.into());
-            }
-            let project = session.project();
-            ensure!(
-                project.glossary() == glossary,
-                "the project's glossary changed during translation"
-            );
-            let mut translated = Vec::with_capacity(current.len());
-            for (line, row) in current.into_iter().zip(rows) {
-                let (page, _) = project.parent(line.layer)?;
-                ensure!(
-                    page.id == line.page && !page.excluded,
-                    "{} moved or its page was excluded",
-                    line.id
-                );
-                let Content::Block(block) = &project.layer(line.layer)?.content else {
-                    anyhow::bail!("{} is no longer a text block", line.id);
-                };
-                let saved = block.translation.as_ref().map(|text| text.content.text());
-                ensure!(
-                    block.source.content.text() == line.source
-                        && block.source.language == line.language
-                        && saved == line.saved,
-                    "the source or translation of {} changed during translation",
-                    line.id
-                );
-                translated.push((line.layer, line.language, row.translation));
-            }
-            let ops = written(&project, translated, &translator, &global)?;
-            if cancel.is_cancelled() {
-                return Err(Stopped.into());
-            }
-            session.apply(Edit {
-                label: Stage::Translate.to_string(),
-                ops,
-            })?;
-            Ok(())
+        let config = config.clone();
+        let member = member.clone();
+        let committed = tokio::task::spawn_blocking(move || {
+            commit_batch(&member, &config, &glossary, current.into_iter().zip(rows))
         })
         .await??;
         // A page split across requests finishes only after its last rows are committed.
@@ -528,16 +486,143 @@ pub(super) async fn translate(
                 stage: Stage::Translate,
             });
         }
-        conversation.context.record([(messages, usage)]);
-        remaining = &remaining[end..];
+        if !committed.is_empty() {
+            let sources: Vec<_> = committed
+                .iter()
+                .map(|row| json!({"id":row.id, "source":row.source}))
+                .collect();
+            let messages = vec![
+                Message::user(json!({"texts": sources}).to_string()),
+                Message::assistant(json!({"texts": committed}).to_string()),
+            ];
+            conversation.context.record([(messages, usage)]);
+        }
     }
     Ok(())
+}
+
+/// Check membership and write the remaining replies under the same session lock.
+fn commit_batch(
+    member: &Member,
+    config: &PipelineConfig,
+    glossary: &[GlossaryEntry],
+    rows: impl ExactSizeIterator<Item = (Line, Row)>,
+) -> Result<Vec<Row>> {
+    let mut session = member.session.lock();
+    if member.cancel.is_cancelled() {
+        return Err(Stopped.into());
+    }
+    let project = session.project();
+    ensure!(
+        project.glossary() == glossary,
+        "the project's glossary changed during translation"
+    );
+    let mut translated = Vec::with_capacity(rows.len());
+    let mut committed = Vec::new();
+    for (line, row) in rows {
+        if !project.page(line.page).is_ok_and(|page| !page.excluded) {
+            continue;
+        }
+        let (page, _) = project.parent(line.layer)?;
+        ensure!(page.id == line.page, "{} moved to another page", line.id);
+        let Content::Block(block) = &project.layer(line.layer)?.content else {
+            anyhow::bail!("{} is no longer a text block", line.id);
+        };
+        let saved = block.translation.as_ref().map(|text| text.content.text());
+        ensure!(
+            block.source.content.text() == line.source
+                && block.source.language == line.language
+                && saved == line.saved,
+            "the source or translation of {} changed during translation",
+            line.id
+        );
+        translated.push((line.layer, line.language, row.translation.clone()));
+        committed.push(row);
+    }
+    if committed.is_empty() {
+        return Ok(committed);
+    }
+    let ops = written(&project, translated, &config.translator, &config.glossary)?;
+    if member.cancel.is_cancelled() {
+        return Err(Stopped.into());
+    }
+    session.apply(Edit {
+        label: Stage::Translate.to_string(),
+        ops,
+    })?;
+    Ok(committed)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use koharu_scene::{Session, Uuid};
+
+    #[test]
+    fn skipping_a_page_during_a_request_commits_only_the_other_pages() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        let mut session = Session::create(directory.path().join("batch.khr"))?;
+        let mut ops = Vec::new();
+        for index in 0..2 {
+            let page = format!("$p{index}");
+            ops.push(
+                json!({"op":"add_page","id":page,"index":index,"size":{"width":100,"height":100}}),
+            );
+            ops.push(json!({"op":"add_layer","page":page,"index":0,"layer":{
+                "kind":"block","source":{"content":"Source"},"translation":{"content":"Saved","language":"en"}
+            }}));
+        }
+        session.apply(Edit {
+            label: "fixture".into(),
+            ops: ops
+                .into_iter()
+                .map(serde_json::from_value)
+                .collect::<Result<_, _>>()?,
+        })?;
+        let project = session.project();
+        let session = std::sync::Arc::new(parking_lot::Mutex::new(session));
+        let members: Vec<_> = project
+            .pages()
+            .enumerate()
+            .map(|(index, page)| Member {
+                run: crate::RunId(0),
+                job: 0.into(),
+                page: page.id,
+                index,
+                blocks: None,
+                session: session.clone(),
+                cancel: CancellationToken::new(),
+                resume: false,
+            })
+            .collect();
+        let requested = lines(&project, &members, &[])?;
+        let skipped = requested[0].layer;
+        let included = requested[1].layer;
+        session.lock().apply(Edit {
+            label: "skip first".into(),
+            ops: vec![serde_json::from_value(
+                json!({"op":"set_page_options","page":members[0].page,"excluded":true}),
+            )?],
+        })?;
+        let rows = requested.into_iter().map(|line| {
+            let row = Row {
+                id: line.id.clone(),
+                source: line.source.clone(),
+                translation: "New".into(),
+            };
+            (line, row)
+        });
+        let committed = commit_batch(&members[0], &PipelineConfig::default(), &[], rows)?;
+        assert_eq!(committed.len(), 1);
+        assert_eq!(committed[0].id, "P002-B001");
+        let after = session.lock().project();
+        assert_eq!(after.layer(skipped)?, project.layer(skipped)?);
+        let Content::Block(block) = &after.layer(included)?.content else {
+            unreachable!()
+        };
+        assert_eq!(block.translation.as_ref().unwrap().content.text(), "New");
+        Ok(())
+    }
 
     #[test]
     fn selected_block_uses_its_story_badge_and_neighbors_saved_translation() -> Result<()> {

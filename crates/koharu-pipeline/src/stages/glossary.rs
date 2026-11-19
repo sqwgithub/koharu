@@ -118,11 +118,37 @@ pub(crate) async fn analyze(
     config: &PipelineConfig,
     pages: Arc<BTreeSet<PageId>>,
 ) -> Result<()> {
+    loop {
+        match analyze_pages(task, config, Arc::clone(&pages)).await {
+            Err(error) if error.is::<SelectionChanged>() => continue,
+            result => return result,
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("the included pages changed during terminology analysis")]
+struct SelectionChanged;
+
+async fn analyze_pages(
+    task: &Task,
+    config: &PipelineConfig,
+    pages: Arc<BTreeSet<PageId>>,
+) -> Result<()> {
     let member = &task.members[0];
     if member.cancel.is_cancelled() {
         return Err(Stopped.into());
     }
     let snapshot = member.session.lock().project();
+    let included =
+        |project: &koharu_scene::Project, pages: &BTreeSet<PageId>| -> BTreeSet<PageId> {
+            pages
+                .iter()
+                .copied()
+                .filter(|id| project.page(*id).is_ok_and(|page| !page.excluded))
+                .collect()
+        };
+    let original_pages = included(&snapshot, &pages);
     let lines = crate::resume::glossary_lines(&snapshot, &pages)?;
     let input = crate::resume::glossary_input(&lines, &config.translator.target);
     let started = Instant::now();
@@ -346,6 +372,9 @@ pub(crate) async fn analyze(
     let target = config.translator.target.clone();
     member
         .apply(Stage::Glossary, move |project| {
+            if included(project, &pages) != original_pages {
+                return Err(SelectionChanged.into());
+            }
             ensure!(
                 crate::resume::glossary_input(
                     &crate::resume::glossary_lines(project, &pages)?,

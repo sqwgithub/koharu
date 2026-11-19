@@ -92,7 +92,9 @@ impl Member {
                 return Ok(());
             }
             let project = session.project();
-            if !project.page(member.page).is_ok_and(|page| !page.excluded) {
+            if stage != Stage::Glossary
+                && !project.page(member.page).is_ok_and(|page| !page.excluded)
+            {
                 return Ok(());
             }
             let ops = write(&project)?;
@@ -196,6 +198,11 @@ pub(crate) async fn run(mut task: Task, inputs: Inputs) -> Result<(), String> {
     let stage = task.stage;
     let config = &inputs.config;
     task.members.retain_mut(|member| {
+        // Glossary analysis has one representative job for the whole selected
+        // range. Its input filters each page, including that representative.
+        if stage == Stage::Glossary {
+            return true;
+        }
         let project = member.session.lock().project();
         let Ok(page) = project.page(member.page) else {
             return false;
