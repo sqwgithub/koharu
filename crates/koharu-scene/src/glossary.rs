@@ -346,6 +346,7 @@ impl Project {
         groups: Vec<Vec<GlossaryEntry>>,
         selected: Vec<GlossaryEntry>,
         suggestions: Vec<AliasSuggestion>,
+        reviewed_pages: Option<&BTreeSet<PageId>>,
     ) -> Vec<Op> {
         let mut candidates: BTreeMap<_, _> = self
             .glossary_candidates
@@ -357,7 +358,7 @@ impl Project {
                 continue;
             };
             if let Some(previous) = candidates.remove(&source) {
-                for item in previous {
+                for item in previous.into_iter().filter(|e| e.source != e.translation) {
                     if !group.iter().any(|entry| {
                         entry.kind == item.kind && entry.translation == item.translation
                     }) {
@@ -368,28 +369,48 @@ impl Project {
             candidates.insert(source, group);
         }
         let mut entries = self.glossary().to_vec();
-        let held: BTreeSet<_> = entries.iter().map(|entry| entry.source.clone()).collect();
         // A later coarse extraction cannot overturn a human decision (or bypass
         // pending review) even if it includes the honorific with the name.
+        let expired = |s: &AliasSuggestion| {
+            reviewed_pages.is_some_and(|pages| s.locations.iter().all(|l| pages.contains(&l.page)))
+        };
         let reviewed: BTreeSet<_> = self
             .suggestion_reviews
             .closed_aliases
             .iter()
             .map(|(source, _)| source.as_str())
             .chain(
-                self.suggestion_reviews
-                    .aliases
+                self.alias_suggestions()
                     .iter()
+                    .filter(|s| !expired(s))
                     .chain(&suggestions)
                     .map(|s| s.source.as_str()),
             )
             .collect();
-        entries.extend(selected.into_iter().filter(|entry| {
-            let source = entry.source.as_str();
-            !held.contains(source)
-                && !reviewed.contains(source)
-                && !reviewed.contains(japanese_address(source).0)
-        }));
+        for entry in selected {
+            if reviewed.contains(entry.source.as_str())
+                || reviewed.contains(japanese_address(&entry.source).0)
+            {
+                continue;
+            }
+            if let Some(current) = entries.iter_mut().find(|e| e.source == entry.source) {
+                // Old analyses stored copied source text as an ordinary translation.
+                if current.is_term()
+                    && current.translation == current.source
+                    && self
+                        .glossary_candidates()
+                        .iter()
+                        .flatten()
+                        .any(|e| e == current)
+                {
+                    current.kind = entry.kind;
+                    current.translation = entry.translation;
+                    current.note = entry.note;
+                }
+            } else {
+                entries.push(entry);
+            }
+        }
         let candidates: Vec<_> = candidates.into_values().collect();
         let mut ops = Vec::new();
         if candidates.as_slice() != self.glossary_candidates() {
@@ -401,8 +422,11 @@ impl Project {
                 entries,
             });
         }
-        if !suggestions.is_empty() {
-            ops.push(Op::SuggestAliases { suggestions });
+        if !suggestions.is_empty() || self.alias_suggestions().iter().any(expired) {
+            ops.push(Op::SuggestAliases {
+                suggestions,
+                reviewed_pages: reviewed_pages.cloned().unwrap_or_default(),
+            });
         }
         ops
     }

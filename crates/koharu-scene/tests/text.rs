@@ -283,6 +283,7 @@ fn apply_candidate_preserves_marks_exclusions_and_undo() -> koharu_scene::Result
         vec![vec![old.clone(), current.clone()]],
         vec![current.clone(), other.clone()],
         vec![],
+        None,
     );
     session.apply(common::edit(ops))?;
     session.apply(common::edit(vec![Op::EditManualCandidate {

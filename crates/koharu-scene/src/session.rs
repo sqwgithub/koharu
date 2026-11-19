@@ -487,6 +487,7 @@ mod tests {
         let propose = || {
             edit(vec![Op::SuggestAliases {
                 suggestions: vec![suggestion.clone()],
+                reviewed_pages: Default::default(),
             }])
         };
         let resolve = |translation| {
@@ -497,6 +498,26 @@ mod tests {
         };
         session.apply(propose())?;
         assert!(session.project().glossary().is_empty());
+        let name = crate::GlossaryEntry {
+            source: suggestion.source.clone(),
+            translation: "蕾亚".into(),
+            kind: crate::GlossaryKind::Person,
+            note: String::new(),
+            wiki_url: None,
+            excluded_layers: Default::default(),
+        };
+        // A completed review that found no link releases the name for ordinary selection.
+        let pages = suggestion.locations.iter().map(|l| l.page).collect();
+        let refreshed = session.project().analyzed_glossary(
+            vec![vec![name.clone()]],
+            vec![name.clone()],
+            vec![],
+            Some(&pages),
+        );
+        session.apply(edit(refreshed))?;
+        assert!(session.project().alias_suggestions().is_empty());
+        assert_eq!(session.project().glossary(), &[name]);
+        session.undo()?;
         session.apply(resolve(None))?;
         session.undo()?;
         assert_eq!(
@@ -607,6 +628,7 @@ mod tests {
             groups.clone(),
             vec![name.clone(), preserve.clone()],
             vec![],
+            None,
         );
         session.apply(Edit {
             label: "analysis".into(),
@@ -632,7 +654,7 @@ mod tests {
         };
         let ops = session
             .project()
-            .analyzed_glossary(vec![vec![additional]], vec![], vec![]);
+            .analyzed_glossary(vec![vec![additional]], vec![], vec![], None);
         session.apply(Edit {
             label: "reanalyze".into(),
             ops,
