@@ -425,7 +425,7 @@ export type InkSuggestion = {
 };
 
 /**  The inpainters, by id in the section and by name. */
-export type Inpainter = "lama" | "flux3-klein" | "moss-image" | "qwen-image";
+export type Inpainter = "lama" | "flux3-klein" | "qwen-image";
 
 export type InpainterConfig = {
 	/**  What cleans pages and the Remove brush's areas. */

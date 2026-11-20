@@ -13,7 +13,7 @@ use anyhow::{Context as _, Result};
 use koharu_pipeline::{Pipeline, PipelineConfig};
 use koharu_renderer::{Gpu, Renderer, RendererConfig};
 use sentry::protocol::GpuContext;
-use tauri::{Env, Manager as _, utils::platform};
+use tauri::Manager as _;
 use tauri_plugin_log::{Target, TargetKind, log::LevelFilter};
 use tauri_plugin_window_state::StateFlags;
 use tauri_runtime_cef::{Cef, CefRuntime};
@@ -27,26 +27,21 @@ pub fn run(context: tauri::Context<CefRuntime>) -> Result<()> {
     tauri::async_runtime::set(tokio::runtime::Handle::current());
 
     let dev_data = koharu_config::dev_data_dir();
-
-    // The install folder in Windows release builds, where setup puts Koharu
-    // and its store; it's read-only on macOS and Linux, so the app's local
-    // data folder otherwise. That is Tauri's `app_local_data_dir`, which
-    // needs the app this builds.
-    let folder = if let Some(folder) = &dev_data {
+    if let Some(folder) = &dev_data {
         anyhow::ensure!(
             folder.is_absolute(),
             "KOHARU_DEV_DATA_DIR must be an absolute path"
         );
-        folder.clone()
-    } else if cfg!(all(windows, not(debug_assertions))) {
-        platform::resource_dir(context.package_info(), &Env::default())
-            .context("Koharu's install folder is unknown")?
-    } else {
-        dirs::data_local_dir()
+    }
+    // A development launch can keep its projects apart from the installation.
+    let projects = match dev_data.as_deref().or_else(|| koharu_runtime::root()) {
+        Some(folder) => folder.join("projects"),
+        None => dirs::data_local_dir()
             .context("the user's local data folder is unknown")?
             .join(&context.config().identifier)
+            .join("projects"),
     };
-    let library = Library::new(folder.join("projects"))?;
+    let library = Library::new(projects)?;
 
     // The process's, which the pipeline draws a painted area's page with.
     let renderer = Renderer::get().clone();
@@ -56,7 +51,7 @@ pub fn run(context: tauri::Context<CefRuntime>) -> Result<()> {
     let adapter = gpu.adapter.get_info();
     // CEF hands its frames over as GPU textures where Koharu's GPU can take
     // them, and copies them through memory everywhere else.
-    let sharing = screen::sharing(gpu);
+    let sharing = screen::sharing(&gpu);
     let shared = sharing.is_some();
     tracing::info!(
         "CEF's frames: {} on {} ({})",
@@ -77,7 +72,7 @@ pub fn run(context: tauri::Context<CefRuntime>) -> Result<()> {
     );
 
     let pipeline = Pipeline::new(koharu_config::get::<PipelineConfig>()?);
-    let app = Arc::new(App::new(library, renderer, gpu, pipeline));
+    let app = Arc::new(App::new(library, renderer, pipeline));
     koharu_sentry::set_screenshot({
         let screen = app.screen.clone();
         move || screen.screenshot()
@@ -89,6 +84,11 @@ pub fn run(context: tauri::Context<CefRuntime>) -> Result<()> {
         .on_window_event({
             let app = Arc::clone(&app);
             move |label, _, window, event| screen::on_window_event(&app, label, window, event)
+        })
+        // A second launch on this profile, which CEF ends before any plugin runs.
+        .on_relaunch({
+            let app = Arc::clone(&app);
+            move || app.bring_forward()
         });
     // A shared texture opens only on the GPU that made it.
     let cef = match sharing.flatten() {
@@ -138,12 +138,9 @@ pub fn run(context: tauri::Context<CefRuntime>) -> Result<()> {
                 .targets([Target::new(logs)])
                 .build(),
         )
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            if let Some(window) = app.get_window(screen::MAIN) {
-                let _ = window.unminimize();
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
+        // Another build of Koharu, on another CEF profile.
+        .plugin(tauri_plugin_single_instance::init(|tauri, _, _| {
+            tauri.state::<Arc<App>>().bring_forward()
         }))
         .plugin(
             tauri_plugin_window_state::Builder::default()
@@ -165,7 +162,7 @@ pub fn run(context: tauri::Context<CefRuntime>) -> Result<()> {
         .setup(move |tauri| {
             let app = tauri.state::<Arc<App>>();
             app.start(tauri.handle().clone());
-            Ok(screen::open(tauri.handle(), &app.screen, app.gpu, shared)?)
+            Ok(screen::open(tauri.handle(), &app.screen, gpu, shared)?)
         })
         .run(context)?;
     Ok(())

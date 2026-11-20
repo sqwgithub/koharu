@@ -1,8 +1,8 @@
 use image::{DynamicImage, GrayImage, RgbImage, imageops};
 use koharu_ml::{
+    Canceller,
     flux3_klein::{self, Flux3Klein},
     lama::{self, Lama},
-    moss_image::{self, MossImage},
     qwen_image::{self, QwenImage},
 };
 use koharu_runtime::Device;
@@ -21,9 +21,7 @@ pub enum Inpainter {
     Lama,
     #[strum(to_string = "FLUX.3 Klein")]
     Flux3Klein,
-    #[strum(to_string = "MOSS-Image")]
-    MossImage,
-    #[strum(to_string = "Qwen-Image 2.1")]
+    #[strum(to_string = "Qwen-Image 2.1 Turbo")]
     QwenImage,
 }
 
@@ -43,6 +41,11 @@ pub(super) trait Inpaint {
     /// The longest side of a window it redraws in one pass.
     fn pass(&self) -> u32 {
         u32::MAX
+    }
+
+    /// What stops a redraw under way, for a model that can be stopped.
+    fn canceller(&self) -> Option<Canceller> {
+        None
     }
 }
 
@@ -64,6 +67,10 @@ impl Inpaint for Lama {
 }
 
 impl Inpaint for Flux3Klein {
+    fn canceller(&self) -> Option<Canceller> {
+        Some(Flux3Klein::canceller(self))
+    }
+
     fn inference(
         &self,
         image: &RgbImage,
@@ -83,26 +90,11 @@ impl Inpaint for Flux3Klein {
     }
 }
 
-impl Inpaint for MossImage {
-    fn inference(
-        &self,
-        image: &RgbImage,
-        mask: &GrayImage,
-        prompt: &str,
-    ) -> anyhow::Result<RgbImage> {
-        let options = moss_image::InpaintOptions::default();
-        let redrawn = MossImage::inpaint(
-            self,
-            prompt,
-            &DynamicImage::ImageRgb8(image.clone()),
-            &DynamicImage::ImageLuma8(mask.clone()),
-            &options,
-        )?;
-        Ok(fitted(redrawn, image))
-    }
-}
-
 impl Inpaint for QwenImage {
+    fn canceller(&self) -> Option<Canceller> {
+        Some(QwenImage::canceller(self))
+    }
+
     fn inference(
         &self,
         image: &RgbImage,
@@ -136,7 +128,6 @@ pub(super) async fn load(model: Inpainter, device: &'static Device) -> anyhow::R
     Ok(match model {
         Inpainter::Lama => Box::new(Lama::load(device).await?),
         Inpainter::Flux3Klein => Box::new(Flux3Klein::load(device).await?),
-        Inpainter::MossImage => Box::new(MossImage::load(device).await?),
         Inpainter::QwenImage => Box::new(QwenImage::load(device).await?),
     })
 }
