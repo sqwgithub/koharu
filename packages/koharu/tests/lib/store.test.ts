@@ -3,6 +3,19 @@ import { describe, expect, it } from 'vitest'
 import { receiveDownload, receivePipeline, receiveRuns, useKoharuStore } from '@/lib/store'
 
 describe('editor state', () => {
+  it('replays fast sound-effect progress and returns to the page count once it finishes', () => {
+    receiveRuns([
+      { kind: 'queued', run: 2, steps: 172 },
+      { kind: 'fast_sfx_progress', run: 2, completed: 0, total: 64 },
+      { kind: 'started', run: 2, stage: 'translate', page: 'five' },
+      { kind: 'fast_sfx_progress', run: 2, completed: 32, total: 64 },
+    ])
+    const job = () => useKoharuStore.getState().jobs[2]
+    expect(job()).toMatchObject({ completed: 0, total: 172, fastSfx: { completed: 32, total: 64 } })
+    receivePipeline({ kind: 'fast_sfx_progress', run: 2, completed: 64, total: 64 })
+    expect(job()).toMatchObject({ stage: 'translate', completed: 0, total: 172, fastSfx: null })
+  })
+
   it('shows the pending translation after concurrent inpainting ends', () => {
     receiveRuns([
       { kind: 'queued', run: 1, steps: 4 },

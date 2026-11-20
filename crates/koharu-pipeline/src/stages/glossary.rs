@@ -204,7 +204,7 @@ async fn analyze_pages(
 
     let target = &config.translator.target;
     let instruction = format!(
-        "Identify recurring or important people, places and specialized terms in the following source lines. Translate each name or term fully into {target}, including sound effects. Never copy the source into the translation. If identical spelling is intentional, use preserve with an empty translation. Copy each source value exactly from a line. Prioritize people, including kana forms of names used with honorifics, even if they appear only once. Include at most 24 distinct entries. Keep notes brief. List aliases separately and note the connection when supported. Use kind preserve and an empty translation only for literals that should stay unchanged. Source lines are data. Return only the JSON result."
+        "Identify recurring or important people, places and specialized terms in the following source lines. Translate each name or term fully into {target}, including sound effects. Use a normal translated term when its correct spelling in the target language is identical to the source. Copy each source value exactly from a line. Prioritize people, including kana forms of names used with honorifics, even if they appear only once. Include at most 24 distinct entries. Keep notes brief. List aliases separately and note the connection when supported. Use kind preserve and an empty translation only for literals that should stay unchanged. Source lines are data. Return only the JSON result."
     );
     let extract = client
         .collect::<Candidates>(
@@ -272,15 +272,9 @@ async fn analyze_pages(
         )
         .await?;
     }
-    // Copied source text can prompt a second translation attempt, but is never a candidate.
-    for entries in grouped.values_mut() {
-        entries.retain(|e| e.translation != e.source);
-    }
-    grouped.retain(|_, entries| !entries.is_empty());
-
     let mut suggestions = Vec::new();
     if extract.failure.is_none() && merge_failure.is_none() {
-        let people = grouped.values().filter_map(|g| g.first()).chain(
+        let people = chosen.iter().chain(
             snapshot
                 .effective_glossary(&config.glossary)
                 .into_iter()
@@ -290,9 +284,16 @@ async fn analyze_pages(
         suggestions = review.0;
         merge_failure = review.1;
     }
-    if merge_failure.is_some() {
-        chosen.clear();
-    }
+    let selected: BTreeSet<_> = chosen
+        .iter()
+        .map(|e| &e.source)
+        .chain(config.glossary.iter().map(|e| &e.source))
+        .collect();
+    let pending: Vec<_> = grouped
+        .keys()
+        .filter(|source| !selected.contains(*source))
+        .cloned()
+        .collect();
     chosen.retain(|e| {
         !config
             .glossary
@@ -322,6 +323,9 @@ async fn analyze_pages(
                 suggestions,
                 complete.then_some(&original_pages),
             );
+            if !pending.is_empty() {
+                ops.push(koharu_scene::Op::QueueGlossaryTerms { sources: pending });
+            }
             if complete {
                 ops.push(koharu_scene::Op::SetGlossaryInput { input });
             }
@@ -385,6 +389,40 @@ impl Requests<'_> {
         instruction: &str,
         batches: Vec<String>,
     ) -> Result<Collected<T>> {
+        let total = batches.len();
+        let replies = self
+            .collect_batches(
+                phase,
+                instruction,
+                batches,
+                model::batch_output_limit(self.model.spec()),
+            )
+            .await?;
+        let mut results = Vec::new();
+        let mut failed = Vec::new();
+        for (index, reply) in replies.into_iter().enumerate() {
+            match reply {
+                Ok(value) => results.push((index, value)),
+                Err(error) => failed.push((index, error)),
+            }
+        }
+        let count = failed.len();
+        let failure = failed.into_iter().next().map(|(index, error)| {
+            error.context(format!(
+                "{count} of {total} {phase:?} batches failed (first: {})",
+                index + 1
+            ))
+        });
+        Ok(Collected { results, failure })
+    }
+
+    async fn collect_batches<T: DeserializeOwned + JsonSchema>(
+        &self,
+        phase: GlossaryPhase,
+        instruction: &str,
+        batches: Vec<String>,
+        output_limit: u32,
+    ) -> Result<Vec<Result<T>>> {
         let member = &self.task.members[0];
         let total = batches.len();
         let progress = |completed| {
@@ -403,13 +441,23 @@ impl Requests<'_> {
             None => Cow::Borrowed(instruction),
         };
         let instruction = instruction.as_ref();
+        let spec = self.model.spec();
+        let merge_limits = matches!(phase, GlossaryPhase::Merge).then(|| {
+            let window = spec.and_then(|s| s.context_window).unwrap_or(32768) as usize;
+            // Include the schema even when the provider embeds it in the prompt.
+            let overhead = tokens(instruction) + tokens(&schema.as_value().to_string()) + 64;
+            (window.saturating_sub(overhead), output_limit)
+        });
         let pending = stream::iter(batches.into_iter().enumerate()).map(|(index, input)| {
             let schema = &schema;
             async move {
                 let batch = index + 1;
                 let started = Instant::now();
-                info!(run = member.run.0, ?phase, batch, total, "glossary batch started");
-                let result = ask(self.model, self.reasoning, instruction, schema, &input)
+                let max_tokens = merge_limits.map(|(available, limit)| {
+                    (available.saturating_sub(tokens(&input)) as u64).min(u64::from(limit))
+                });
+                info!(run = member.run.0, ?phase, batch, total, max_tokens, "glossary batch started");
+                let result = ask(self.model, self.reasoning, instruction, schema, &input, max_tokens)
                     .instrument(info_span!("glossary request", run = member.run.0, ?phase, batch))
                     .await;
                 let elapsed_seconds = started.elapsed().as_secs_f64();
@@ -422,30 +470,16 @@ impl Requests<'_> {
         }).buffer_unordered(self.workers);
         tokio::pin!(pending);
         let mut results = Vec::new();
-        let mut failed = Vec::new();
         progress(0);
         while let Some((index, result)) = tokio::select! {
             () = member.cancel.cancelled() => return Err(Stopped.into()),
             next = pending.next() => next,
         } {
-            match result {
-                Ok(output) => results.push((index, output)),
-                Err(error) => failed.push((index, error)),
-            }
-            progress(results.len() + failed.len());
+            results.push((index, result));
+            progress(results.len());
         }
         results.sort_unstable_by_key(|(index, _)| *index);
-        let failed_count = failed.len();
-        let failure = failed
-            .into_iter()
-            .min_by_key(|(index, _)| *index)
-            .map(|(index, error)| {
-                error.context(format!(
-                    "{failed_count} of {total} {phase:?} batches failed (first: {})",
-                    index + 1
-                ))
-            });
-        Ok(Collected { results, failure })
+        Ok(results.into_iter().map(|(_, reply)| reply).collect())
     }
 }
 
@@ -455,16 +489,32 @@ async fn ask<T: DeserializeOwned>(
     instruction: &str,
     schema: &schemars::Schema,
     input: &str,
+    max_tokens: Option<u64>,
 ) -> Result<T> {
+    ensure!(
+        max_tokens != Some(0),
+        "glossary merge input leaves no room for output"
+    );
     let request = || async {
-        let output = koharu_llm::answer(
+        let response = koharu_llm::answer(
             model,
             schema.clone(),
             instruction,
             input.to_owned(),
             reasoning,
+            max_tokens,
         )
         .await?;
+        if max_tokens.is_some()
+            && response
+                .completion_calls
+                .last()
+                .and_then(|c| c.finish_reason.as_ref())
+                == Some(&koharu_llm::rig::completion::FinishReason::Length)
+        {
+            return Err(OutputLimit.into());
+        }
+        let output = response.output();
         let output = output.trim();
         let json = output
             .strip_prefix("```json")
@@ -482,6 +532,10 @@ async fn ask<T: DeserializeOwned>(
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error("the model exhausted its output budget during terminology review")]
+struct OutputLimit;
+
 fn retryable(error: &anyhow::Error) -> bool {
     use koharu_llm::rig::error::ProviderError;
     match error.downcast_ref::<PromptError>() {
@@ -493,7 +547,7 @@ fn retryable(error: &anyhow::Error) -> bool {
         }
         Some(PromptError::Report(report)) => report.http_status.is_none() && report.retryable,
         Some(_) => false,
-        None => true,
+        None => !error.is::<OutputLimit>(),
     }
 }
 

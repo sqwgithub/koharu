@@ -108,14 +108,16 @@ function JobItem({ job }: { job: Job }) {
   // Numbered by position in the rail, so the row says where in the run this is.
   const pages = usePages(job.page !== null).data
   const pageIndex = job.page ? (pages?.findIndex((page) => page.id === job.page) ?? -1) : -1
-  const pageLabel = analysis?.total
-    ? t(
-        analysis.phase === 'merge' ? 'glossary.mergeBatchProgress' : 'glossary.batchProgress',
-        analysis,
-      )
-    : pageIndex >= 0 && !analysis
-      ? t('navigator.pageNumber', { number: pageIndex + 1 })
-      : undefined
+  const pageLabel = job.fastSfx
+    ? t('activity.fastSfxProgress', job.fastSfx)
+    : analysis?.total
+      ? t(
+          analysis.phase === 'merge' ? 'glossary.mergeBatchProgress' : 'glossary.batchProgress',
+          analysis,
+        )
+      : pageIndex >= 0 && !analysis
+        ? t('navigator.pageNumber', { number: pageIndex + 1 })
+        : undefined
   if (job.state === 'failed') {
     return (
       <Failure
@@ -125,20 +127,21 @@ function JobItem({ job }: { job: Job }) {
       />
     )
   }
-  const percent = analysis
-    ? progress(analysis.completed, analysis.total)
-    : progress(job.completed, job.total)
+  const current = job.fastSfx ?? analysis ?? job
+  const percent = progress(current.completed, current.total)
   return (
     <div className='border-b p-3 last:border-b-0'>
       <div className='grid grid-cols-[1rem_minmax(0,1fr)_2.25rem_1.5rem] items-start gap-x-2.5'>
         <span className='mt-1.5 size-1.5 justify-self-center rounded-full bg-primary' />
         <div className='min-w-0'>
           <span className='block truncate text-[12px] font-medium capitalize'>
-            {analysis
-              ? t('phase.glossary')
-              : job.stage
-                ? t(`phase.${job.stage}`, { defaultValue: job.stage })
-                : t('activity.processing')}
+            {job.fastSfx
+              ? t('phase.translate')
+              : analysis
+                ? t('phase.glossary')
+                : job.stage
+                  ? t(`phase.${job.stage}`, { defaultValue: job.stage })
+                  : t('activity.processing')}
           </span>
         </div>
         <span className='pt-0.5 text-right text-[10px] tabular-nums'>

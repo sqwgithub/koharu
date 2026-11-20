@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { BookOpenText, X } from 'lucide-react'
+import { BookOpenText, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,6 +17,17 @@ import {
   type PageId,
   type ProjectId,
 } from '@koharu/ipc/protocol'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@koharu/ui/components/alert-dialog'
 import { Button } from '@koharu/ui/components/button'
 import {
   Dialog,
@@ -48,12 +59,18 @@ export function GlossaryPanel({ project, active }: { project: ProjectId; active:
     ),
   )
   const [managerOpen, setManagerOpen] = useState(false)
+  const [clearOpen, setClearOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [action, setAction] = useState('')
   const [checked, setChecked] = useState(false)
   const list = data?.entries ?? []
   const candidates = data?.candidates
   const safe = data?.project === project
+  const canClear =
+    safe &&
+    !busy &&
+    !pipelineBusy &&
+    (list.length > 0 || !!candidates?.length || data.suggestions.length > 0)
   const globalCount = useKoharuStore((state) => state.preferences?.pipeline.glossary?.length ?? 0)
   const blockedCount = list.filter(
     (item) => item.kind === 'preserve' || item.kind === 'preserve_block',
@@ -79,6 +96,21 @@ export function GlossaryPanel({ project, active }: { project: ProjectId; active:
     try {
       const runs = await call(commands.extractSource, project)
       setAction(runs.length ? t('glossary.extractionStarted') : t('glossary.extractionCurrent'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const clearGlossary = async () => {
+    if (!canClear) return
+    setBusy(true)
+    try {
+      await call(commands.edit, {
+        label: 'edit_glossary',
+        ops: [{ op: 'clear_glossary', project }],
+      })
+      setClearOpen(false)
+      await refresh(glossaryKey)
     } finally {
       setBusy(false)
     }
@@ -131,6 +163,29 @@ export function GlossaryPanel({ project, active }: { project: ProjectId; active:
           >
             {t('glossary.check')}
           </Button>
+          <AlertDialog open={clearOpen} onOpenChange={setClearOpen}>
+            <AlertDialogTrigger
+              render={<Button size='sm' variant='outline' disabled={!canClear} />}
+            >
+              <Trash2 /> {t('glossary.clearProject')}
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t('glossary.clearProject')}</AlertDialogTitle>
+                <AlertDialogDescription>{t('glossary.clearDescription')}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{t('glossary.cancel')}</AlertDialogCancel>
+                <AlertDialogAction
+                  variant='destructive'
+                  disabled={!canClear}
+                  onClick={() => void clearGlossary().catch(() => undefined)}
+                >
+                  {t('glossary.clearProject')}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
         {(analysis || action) && (
           <p role='status' className='text-muted-foreground'>

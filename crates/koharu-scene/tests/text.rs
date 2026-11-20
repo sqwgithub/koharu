@@ -359,6 +359,19 @@ fn apply_candidate_preserves_marks_exclusions_and_undo() -> koharu_scene::Result
             .is_empty()
     );
     let pending = session.project().candidate_reviews(&[])?;
+    let selected = session.project().glossary().to_vec();
+    session.apply(common::edit(vec![Op::ClearGlossary {
+        project: session.id(),
+    }]))?;
+    session.apply(common::edit(vec![Op::SetGlossary {
+        previous: vec![],
+        entries: selected,
+    }]))?;
+    assert!(session.project().candidate_reviews(&[])?.is_empty());
+    assert_eq!(text(&session, ambiguous).content.text(), "哥哥还是哥哥？");
+    session.undo()?;
+    session.undo()?;
+    assert_eq!(session.project().candidate_reviews(&[])?, pending);
     let review = pending
         .iter()
         .find(|r| r.location.layer == ambiguous)

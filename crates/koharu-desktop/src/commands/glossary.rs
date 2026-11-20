@@ -59,6 +59,7 @@ pub fn get_glossary(app: State<'_, Arc<App>>) -> Result<GlossaryView> {
                     })
                     .collect();
                 Some(TermCandidate {
+                    pending: active.is_none() && project.term_needs_review(&first.source),
                     manual: project
                         .manual_candidates(&first.source)
                         .iter()
@@ -453,6 +454,7 @@ pub async fn export_source(app: State<'_, Arc<App>>, window: Window<CefRuntime>)
 
 #[derive(Serialize, Type)]
 pub struct TermCandidate {
+    pending: bool,
     manual: Vec<String>,
     entries: Vec<GlossaryEntry>,
     locations: Vec<TermLocation>,

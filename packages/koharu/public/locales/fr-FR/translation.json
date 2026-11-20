@@ -13,6 +13,7 @@
     "hidden": "Texte masqué ({{count}})"
   },
   "review": {
+    "term": "Terme à vérifier · {{source}}",
     "locationConflict": "Le texte à remplacer n’a pas pu être validé. Vérifiez le terme dans la traduction actuelle.",
     "candidate": "Remplacement du terme · {{source}} → {{expected}}",
     "currentTranslation": "Traduction actuelle",
@@ -36,6 +37,8 @@
     "wiki": "Lien LLM Wiki"
   },
   "glossary": {
+    "clearProject": "Vider le glossaire du projet",
+    "clearDescription": "Tous les termes, expressions à ne pas traduire, traductions proposées et suggestions terminologiques en attente pour ce projet seront supprimés. Cette action peut être annulée.",
     "applyToTranslations": "Appliquer aux traductions existantes",
     "locatorModel": "Le modèle d’analyse terminologique repère les termes dans les phrases.",
     "locating": "Recherche des termes…",
@@ -107,6 +110,7 @@
     "downloadingFiles_one": "Téléchargement de {{count}} fichier",
     "downloadingFiles_other": "Téléchargement de {{count}} fichiers",
     "modelDownload": "Téléchargement du modèle",
+    "fastSfxProgress": "Traduction rapide des onomatopées · {{completed}} / {{total}}",
     "processing": "Traitement",
     "processingFailed": "Échec du traitement.",
     "stop": "Arrêter",

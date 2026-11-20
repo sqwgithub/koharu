@@ -13,6 +13,7 @@
     "hidden": "Texto oculto ({{count}})"
   },
   "review": {
+    "term": "Término por revisar · {{source}}",
     "locationConflict": "No se ha podido validar el texto que se va a sustituir. Revisa el término en la traducción actual.",
     "candidate": "Sustitución de término · {{source}} → {{expected}}",
     "currentTranslation": "Traducción actual",
@@ -36,6 +37,8 @@
     "wiki": "Enlace a LLM Wiki"
   },
   "glossary": {
+    "clearProject": "Vaciar el glosario del proyecto",
+    "clearDescription": "Se eliminarán todos los términos, las entradas que no se deben traducir, las traducciones propuestas y las sugerencias terminológicas pendientes de este proyecto. Puedes deshacer esta acción.",
     "applyToTranslations": "Aplicar a las traducciones existentes",
     "locatorModel": "El modelo de análisis terminológico localiza los términos dentro de las frases.",
     "locating": "Localizando términos…",
@@ -107,6 +110,7 @@
     "downloadingFiles_one": "Descargando {{count}} archivos",
     "downloadingFiles_other": "Descargando {{count}} archivos",
     "modelDownload": "Descarga del modelo",
+    "fastSfxProgress": "Traducción rápida de onomatopeyas · {{completed}} / {{total}}",
     "processing": "Procesando",
     "processingFailed": "Error de procesamiento.",
     "stop": "Detener",

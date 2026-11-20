@@ -191,7 +191,8 @@ pub(crate) async fn locate(
             let input = json!({ "term": term, "lines": rows }).to_string();
             let (model, instruction, schema) = (&model, &instruction, &schema);
             async move {
-                let output = ask::<Alignments>(model, reasoning, instruction, schema, &input).await;
+                let output =
+                    ask::<Alignments>(model, reasoning, instruction, schema, &input, None).await;
                 let mut answers = match output {
                     Ok(output) => output.keyed(&ids),
                     Err(e) if e.downcast_ref::<serde_json::Error>().is_some() => BTreeMap::new(),

@@ -619,7 +619,7 @@ export type Op =
  */
 { op: "write_pixels"; layer: Ref; rect: Rect; pixels: number[] } | 
 /**  Add an imported file, stored once by its content hash. */
-{ op: "add_file"; bytes: number[] } | { op: "set_glossary"; previous: GlossaryEntry[]; entries: GlossaryEntry[] } | { op: "set_glossary_candidates"; candidates: GlossaryEntry[][] } | { op: "edit_manual_candidate"; source: string; translation: string; remove: boolean } | 
+{ op: "add_file"; bytes: number[] } | { op: "set_glossary"; previous: GlossaryEntry[]; entries: GlossaryEntry[] } | { op: "set_glossary_candidates"; candidates: GlossaryEntry[][] } | { op: "clear_glossary"; project: ProjectId } | { op: "queue_glossary_terms"; sources: string[] } | { op: "resolve_glossary_term"; project: ProjectId; candidate: GlossaryEntry; translation: string | null } | { op: "edit_manual_candidate"; source: string; translation: string; remove: boolean } | 
 /**  Queue possible readings of names for human confirmation. Cite existing OCR blocks. */
 { op: "suggest_aliases"; suggestions: AliasSuggestion[] } | { op: "resolve_alias"; suggestion: AliasSuggestion; translation: string | null } | { op: "resolve_ink"; suggestion: InkSuggestion; choice: InkChoice } | 
 /**  Queue a proposed correction to the cited block's existing translation for human review. */
@@ -701,7 +701,7 @@ export type PipelineEvent =
  *  The run's first event: the page stages it does, each of which starts
  *  and finishes once unless the run ends first.
  */
-{ kind: "queued"; run: RunId; steps: number } | { kind: "started"; run: RunId; page: PageId; stage: Stage } | { kind: "finished"; run: RunId; page: PageId; stage: Stage } | { kind: "glossary_progress"; run: RunId; phase: GlossaryPhase; completed: number; total: number } | { kind: "ended"; run: RunId; outcome: Outcome };
+{ kind: "queued"; run: RunId; steps: number } | { kind: "started"; run: RunId; page: PageId; stage: Stage } | { kind: "finished"; run: RunId; page: PageId; stage: Stage } | { kind: "glossary_progress"; run: RunId; phase: GlossaryPhase; completed: number; total: number } | { kind: "fast_sfx_progress"; run: RunId; completed: number; total: number } | { kind: "ended"; run: RunId; outcome: Outcome };
 
 export type Preferences = {
 	pipeline: PipelineConfig,
@@ -888,6 +888,7 @@ export type Target =
 } }) & { blocks?: never; pages?: never };
 
 export type TermCandidate = {
+	pending: boolean,
 	manual: string[],
 	entries: GlossaryEntry[],
 	locations: TermLocation[],

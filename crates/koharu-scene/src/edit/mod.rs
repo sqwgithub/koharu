@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
 
+use crate::glossary::APPLICATION_MARKERS;
 use crate::{
     Background, Content, Created, Error, ExternalImage, GlossaryEntry, Hash, Layer, LayerId,
     NewLayer, PageId, Project, Rect, Ref, Result, Size, Span, Text, Transform, Uuid, store::Tx,
@@ -191,6 +192,20 @@ pub enum Op {
     #[schemars(skip)]
     SetGlossaryCandidates {
         candidates: Vec<Vec<GlossaryEntry>>,
+    },
+    #[schemars(skip)]
+    ClearGlossary {
+        project: crate::ProjectId,
+    },
+    #[schemars(skip)]
+    QueueGlossaryTerms {
+        sources: Vec<String>,
+    },
+    #[schemars(skip)]
+    ResolveGlossaryTerm {
+        project: crate::ProjectId,
+        candidate: GlossaryEntry,
+        translation: Option<String>,
     },
     #[schemars(skip)]
     EditManualCandidate {
@@ -507,6 +522,9 @@ impl Run<'_, '_> {
                     return Err(Error::invalid(index, "invalid or duplicate glossary entry"));
                 }
                 self.project.glossary = entries.clone().into();
+                std::sync::Arc::make_mut(&mut self.project.suggestion_reviews)
+                    .pending_terms
+                    .retain(|source| !entries.iter().any(|e| &e.source == source));
                 Ok(())
             }
             Op::SetGlossaryCandidates { candidates } => {
@@ -514,6 +532,109 @@ impl Run<'_, '_> {
                     return Err(Error::invalid(index, "invalid glossary candidates"));
                 }
                 self.project.glossary_candidates = candidates.clone().into();
+                Ok(())
+            }
+            Op::ClearGlossary { project } => {
+                if self.project.id() != *project {
+                    return Err(Error::invalid(index, "the open project changed"));
+                }
+                self.project.glossary = Default::default();
+                self.project.glossary_candidates = Default::default();
+                let reviews = std::sync::Arc::make_mut(&mut self.project.suggestion_reviews);
+                reviews.manual_candidates.clear();
+                reviews.pending_terms.clear();
+                reviews.aliases.clear();
+                self.project.glossary_input = None;
+                // Location reviews also live on hidden and locked layers. Drop pending
+                // markers so selecting the same term later cannot revive an old review.
+                let marked: Vec<_> = self
+                    .project
+                    .pages()
+                    .flat_map(|page| crate::project::depth_first(&page.layers))
+                    .filter_map(|layer| {
+                        let markers = layer.attributes.get(APPLICATION_MARKERS)?;
+                        let pending: Vec<_> = markers
+                            .iter()
+                            .filter(|(_, marker)| marker["reason"].is_string())
+                            .map(|(source, _)| source.clone())
+                            .collect();
+                        (!pending.is_empty()).then_some((layer.id, pending))
+                    })
+                    .collect();
+                for (id, pending) in marked {
+                    let place = self.place(&id.into())?;
+                    let mut layer = self.get(&place).own();
+                    let markers = layer.attributes.get_mut(APPLICATION_MARKERS).unwrap();
+                    for source in pending {
+                        markers.remove(&source);
+                    }
+                    if markers.is_empty() {
+                        layer.attributes.remove(APPLICATION_MARKERS);
+                    }
+                    self.put(index, &place, layer)?;
+                }
+                Ok(())
+            }
+            Op::QueueGlossaryTerms { sources } => {
+                let reviews = std::sync::Arc::make_mut(&mut self.project.suggestion_reviews);
+                for source in sources {
+                    if !self
+                        .project
+                        .glossary_candidates
+                        .iter()
+                        .any(|g| g.first().is_some_and(|e| &e.source == source))
+                    {
+                        return Err(Error::invalid(index, "unknown glossary candidate"));
+                    }
+                    if !self.project.glossary.iter().any(|e| &e.source == source) {
+                        reviews.pending_terms.insert(source.clone());
+                    }
+                }
+                Ok(())
+            }
+            Op::ResolveGlossaryTerm {
+                project,
+                candidate,
+                translation,
+            } => {
+                if self.project.id() != *project
+                    || !self.project.term_needs_review(&candidate.source)
+                    || !self
+                        .project
+                        .glossary_candidates()
+                        .iter()
+                        .any(|g| g.first() == Some(candidate))
+                {
+                    return Err(Error::invalid(
+                        index,
+                        "the terminology suggestion changed or was already reviewed",
+                    ));
+                }
+                if let Some(translation) = translation {
+                    let mut entry = candidate.clone();
+                    if entry.is_term() || translation.trim() != entry.source {
+                        if !entry.is_term() {
+                            entry.kind = crate::GlossaryKind::Term;
+                        }
+                        entry.translation = translation.trim().to_owned();
+                    }
+                    if !crate::glossary::valid_glossary(std::slice::from_ref(&entry))
+                        || self
+                            .project
+                            .glossary
+                            .iter()
+                            .any(|e| e.source == entry.source)
+                    {
+                        return Err(Error::invalid(
+                            index,
+                            "invalid or already selected glossary entry",
+                        ));
+                    }
+                    std::sync::Arc::make_mut(&mut self.project.glossary).push(entry);
+                }
+                std::sync::Arc::make_mut(&mut self.project.suggestion_reviews)
+                    .pending_terms
+                    .remove(&candidate.source);
                 Ok(())
             }
             Op::EditManualCandidate {

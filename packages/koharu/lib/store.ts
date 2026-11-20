@@ -83,6 +83,7 @@ export interface Job {
     'phase' | 'completed' | 'total'
   > | null
   error: string | null
+  fastSfx?: { completed: number; total: number } | null
 }
 
 interface KoharuStore {
@@ -225,6 +226,12 @@ function fold(job: Job | undefined, event: PipelineEvent): Job {
         ...current,
         glossary: { phase: event.phase, completed: event.completed, total: event.total },
       }
+    case 'fast_sfx_progress':
+      return {
+        ...current,
+        fastSfx:
+          event.completed < event.total ? { completed: event.completed, total: event.total } : null,
+      }
     case 'ended':
       // A failure names its own page and stage: the last started may be another page in flight.
       return event.outcome.kind === 'failed'
@@ -233,11 +240,19 @@ function fold(job: Job | undefined, event: PipelineEvent): Job {
             active: [],
             state: 'failed',
             glossary: null,
+            fastSfx: null,
             stage: event.outcome.stage,
             page: event.outcome.stage === 'glossary' ? null : event.outcome.page,
             error: event.outcome.reason,
           }
-        : { ...current, active: [], state: event.outcome.kind, glossary: null, error: null }
+        : {
+            ...current,
+            active: [],
+            state: event.outcome.kind,
+            glossary: null,
+            fastSfx: null,
+            error: null,
+          }
   }
 }
 

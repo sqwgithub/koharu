@@ -13,6 +13,7 @@
     "hidden": "隱藏文字（{{count}}）"
   },
   "review": {
+    "term": "待確認術語 · {{source}}",
     "locationConflict": "定位到的文字未通過替換檢查，請對照原句確認譯名。",
     "candidate": "術語替換 · {{source}} → {{expected}}",
     "currentTranslation": "目前譯文",
@@ -36,6 +37,8 @@
     "wiki": "LLM Wiki 連結"
   },
   "glossary": {
+    "clearProject": "清空專案術語表",
+    "clearDescription": "將移除此專案的所有術語、禁翻項目、候選譯名及待確認的術語建議。你可以復原這項操作。",
     "applyToTranslations": "套用至現有譯文",
     "locatorModel": "句中位置由術語分析模型判斷。",
     "locating": "正在定位譯名…",
@@ -107,6 +110,7 @@
     "downloadingFiles_one": "正在下載 {{count}} 個檔案",
     "downloadingFiles_other": "正在下載 {{count}} 個檔案",
     "modelDownload": "模型下載",
+    "fastSfxProgress": "快速擬聲詞翻譯 · {{completed}} / {{total}} 個詞",
     "processing": "正在處理",
     "processingFailed": "處理失敗。",
     "stop": "停止",

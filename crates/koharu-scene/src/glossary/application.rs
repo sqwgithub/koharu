@@ -9,7 +9,7 @@ use specta::Type;
 use super::{GlossaryEntry, GlossaryKind, TermLocation, matches, term_occurrences};
 use crate::{Content, Error, LayerId, Op, Project, Result, RichText};
 
-const MARKERS: &str = "koharu.glossary_application";
+pub(crate) const APPLICATION_MARKERS: &str = "koharu.glossary_application";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CandidateLine {
@@ -67,7 +67,7 @@ impl Marker {
     fn op(self, layer: LayerId, term: &str) -> Op {
         Op::SetAttribute {
             layer: layer.into(),
-            namespace: MARKERS.into(),
+            namespace: APPLICATION_MARKERS.into(),
             key: term.into(),
             value: Some(serde_json::json!(self)),
         }
@@ -256,7 +256,7 @@ impl Project {
             if self
                 .layer(id)?
                 .attributes
-                .get(MARKERS)
+                .get(APPLICATION_MARKERS)
                 .and_then(|m| m.get(&entry.source))
                 .and_then(|v| serde_json::from_value::<Marker>(v.clone()).ok())
                 .is_some_and(|m| m.applies(&item.text, translation, expected))
@@ -381,7 +381,7 @@ impl Project {
                 let Content::Block(block) = &layer.content else {
                     continue;
                 };
-                let Some(markers) = layer.attributes.get(MARKERS) else {
+                let Some(markers) = layer.attributes.get(APPLICATION_MARKERS) else {
                     continue;
                 };
                 let Some(translated) = &block.translation else {
@@ -446,7 +446,7 @@ impl Project {
             return Err(Error::Rejected("the glossary review changed".into()));
         }
         let layer = self.layer(item.location.layer)?;
-        let value = &layer.attributes[MARKERS][&item.source];
+        let value = &layer.attributes[APPLICATION_MARKERS][&item.source];
         let mut marker: Marker =
             serde_json::from_value(value.clone()).map_err(|e| Error::Rejected(e.to_string()))?;
         let mut ops = Vec::new();

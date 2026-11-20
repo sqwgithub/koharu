@@ -32,6 +32,7 @@ it('applies only the selected candidate to its included occurrences', async () =
     excluded_layers: ['skip'],
   }
   const group = {
+    pending: false,
     entries: [entry],
     manual: [],
     locations: ['keep', 'skip'].map((layer, i) => ({

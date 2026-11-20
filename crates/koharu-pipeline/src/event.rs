@@ -59,6 +59,11 @@ pub enum Event {
         completed: usize,
         total: usize,
     },
+    FastSfxProgress {
+        run: RunId,
+        completed: usize,
+        total: usize,
+    },
     Ended {
         run: RunId,
         outcome: Outcome,
@@ -123,6 +128,7 @@ impl Events {
         | Event::Started { run, .. }
         | Event::Finished { run, .. }
         | Event::GlossaryProgress { run, .. }
+        | Event::FastSfxProgress { run, .. }
         | Event::Ended { run, .. }) = &event;
         {
             let mut runs = self.runs.lock();
@@ -159,7 +165,7 @@ impl Events {
                     }
                     record.stages.remove(&(*page, *stage));
                 }
-                Event::GlossaryProgress { .. } => {}
+                Event::GlossaryProgress { .. } | Event::FastSfxProgress { .. } => {}
                 Event::Ended { outcome, .. } => {
                     record.ended.send_replace(true);
                     // A failed or stopped run leaves stages it never finished.

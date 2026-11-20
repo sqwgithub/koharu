@@ -498,6 +498,15 @@ mod tests {
         };
         session.apply(propose())?;
         assert!(session.project().glossary().is_empty());
+        session.apply(edit(vec![Op::ClearGlossary {
+            project: session.id(),
+        }]))?;
+        assert!(session.project().alias_suggestions().is_empty());
+        session.undo()?;
+        assert_eq!(
+            session.project().alias_suggestions(),
+            std::slice::from_ref(&suggestion)
+        );
         let name = crate::GlossaryEntry {
             source: suggestion.source.clone(),
             translation: "蕾亚".into(),
@@ -673,18 +682,119 @@ mod tests {
         };
         session.apply(Edit {
             label: "choose".into(),
-            ops: vec![Op::SetGlossary {
-                previous: vec![name, preserve.clone()],
-                entries: vec![other.clone(), excluded.clone()],
-            }],
+            ops: vec![
+                Op::SetGlossary {
+                    previous: vec![name, preserve.clone()],
+                    entries: vec![other.clone(), excluded.clone()],
+                },
+                Op::SetGlossaryInput {
+                    input: crate::Hash::of(b"source"),
+                },
+            ],
         })?;
         drop(session);
-        let session = Session::open(path)?;
+        let mut session = Session::open(&path)?;
         assert_eq!(session.project().glossary(), &[other, excluded]);
         assert!(!session.project().keeps_original(&global, except, "KEY"));
         assert!(session.project().keeps_original(&global, kept, "KEY"));
         assert_eq!(session.project().glossary_candidates(), expected_groups);
         assert_eq!(session.project().manual_candidates("青木"), &["Aoki-san"]);
+        let before = session.project();
+        session.apply(Edit {
+            label: "edit_glossary".into(),
+            ops: vec![Op::ClearGlossary {
+                project: session.id(),
+            }],
+        })?;
+        let cleared = session.project();
+        assert!(cleared.glossary().is_empty());
+        assert!(cleared.glossary_candidates().is_empty());
+        assert!(cleared.manual_candidates("青木").is_empty());
+        assert!(cleared.glossary_input().is_none());
+        session.undo()?;
+        assert_eq!(session.project(), before);
+        session.redo()?;
+        drop(session);
+        assert_eq!(Session::open(path)?.project(), cleared);
+        Ok(())
+    }
+
+    #[test]
+    fn unconfirmed_term_survives_reopen_and_can_be_accepted_edited_or_dismissed()
+    -> crate::Result<()> {
+        use crate::{GlossaryEntry, GlossaryKind};
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("terms.khr");
+        let mut session = Session::create(&path)?;
+        let entry = GlossaryEntry {
+            source: "保健室".into(),
+            translation: "保健室".into(),
+            kind: GlossaryKind::Place,
+            note: String::new(),
+            wiki_url: None,
+            excluded_layers: Default::default(),
+        };
+        let other = GlossaryEntry {
+            source: "医者".into(),
+            translation: "医生".into(),
+            ..entry.clone()
+        };
+        let mut ops = session.project().analyzed_glossary(
+            vec![vec![entry.clone()], vec![other.clone()]],
+            vec![other.clone()],
+            vec![],
+            None,
+        );
+        ops.push(Op::QueueGlossaryTerms {
+            sources: vec![entry.source.clone()],
+        });
+        session.apply(Edit {
+            label: "glossary".into(),
+            ops,
+        })?;
+        drop(session);
+        let mut session = Session::open(&path)?;
+        session.apply(Edit {
+            label: "edit_glossary".into(),
+            ops: vec![Op::ClearGlossary {
+                project: session.id(),
+            }],
+        })?;
+        let cleared = session.project();
+        assert!(!cleared.term_needs_review(&entry.source));
+        assert!(cleared.glossary_candidates().is_empty());
+        session.undo()?;
+        for translation in [Some("保健室"), Some("医务室"), None] {
+            assert!(session.project().term_needs_review(&entry.source));
+            assert_eq!(session.project().glossary(), std::slice::from_ref(&other));
+            session.apply(Edit {
+                label: "edit_glossary".into(),
+                ops: vec![Op::ResolveGlossaryTerm {
+                    project: session.id(),
+                    candidate: entry.clone(),
+                    translation: translation.map(str::to_owned),
+                }],
+            })?;
+            let project = session.project();
+            assert!(!project.term_needs_review(&entry.source));
+            assert_eq!(
+                project
+                    .glossary()
+                    .iter()
+                    .find(|e| e.source == entry.source)
+                    .map(|e| e.translation.as_str()),
+                translation
+            );
+            session.undo()?;
+        }
+        session.apply(Edit {
+            label: "edit_glossary".into(),
+            ops: vec![Op::ClearGlossary {
+                project: session.id(),
+            }],
+        })?;
+        drop(session);
+        assert_eq!(Session::open(path)?.project(), cleared);
         Ok(())
     }
 

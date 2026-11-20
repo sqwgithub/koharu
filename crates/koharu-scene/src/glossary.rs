@@ -1,4 +1,5 @@
 mod application;
+pub(crate) use application::APPLICATION_MARKERS;
 pub use application::{CandidateDecision, CandidateLine, CandidatePlan, CandidateReview};
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -204,6 +205,8 @@ pub(crate) struct SuggestionReviews {
     /// Alternatives explicitly entered for a project candidate group.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub manual_candidates: BTreeMap<String, Vec<String>>,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub pending_terms: BTreeSet<String>,
     pub aliases: Vec<AliasSuggestion>,
     pub closed_aliases: BTreeSet<(String, String)>,
     pub corrections: Vec<TextSuggestion>,
@@ -308,6 +311,10 @@ impl Project {
             .unwrap_or_default()
     }
 
+    pub fn term_needs_review(&self, source: &str) -> bool {
+        self.suggestion_reviews.pending_terms.contains(source)
+    }
+
     pub fn glossary_candidates(&self) -> &[Vec<GlossaryEntry>] {
         &self.glossary_candidates
     }
@@ -358,7 +365,7 @@ impl Project {
                 continue;
             };
             if let Some(previous) = candidates.remove(&source) {
-                for item in previous.into_iter().filter(|e| e.source != e.translation) {
+                for item in previous {
                     if !group.iter().any(|entry| {
                         entry.kind == item.kind && entry.translation == item.translation
                     }) {
@@ -393,21 +400,7 @@ impl Project {
             {
                 continue;
             }
-            if let Some(current) = entries.iter_mut().find(|e| e.source == entry.source) {
-                // Old analyses stored copied source text as an ordinary translation.
-                if current.is_term()
-                    && current.translation == current.source
-                    && self
-                        .glossary_candidates()
-                        .iter()
-                        .flatten()
-                        .any(|e| e == current)
-                {
-                    current.kind = entry.kind;
-                    current.translation = entry.translation;
-                    current.note = entry.note;
-                }
-            } else {
+            if !entries.iter().any(|e| e.source == entry.source) {
                 entries.push(entry);
             }
         }

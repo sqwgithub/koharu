@@ -13,6 +13,7 @@
     "hidden": "非表示のテキスト（{{count}}）"
   },
   "review": {
+    "term": "要確認の用語 · {{source}}",
     "locationConflict": "特定した箇所を安全に置換できません。原文と現在の訳語を照合してください。",
     "candidate": "用語の置換 · {{source}} → {{expected}}",
     "currentTranslation": "現在の訳文",
@@ -36,6 +37,8 @@
     "wiki": "LLM Wiki リンク"
   },
   "glossary": {
+    "clearProject": "プロジェクトの用語集を空にする",
+    "clearDescription": "このプロジェクトの用語、翻訳禁止項目、訳語候補、未確認の用語提案をすべて削除します。この操作は取り消せます。",
     "applyToTranslations": "既存の訳文に適用",
     "locatorModel": "文中の訳語は用語分析モデルが特定します。",
     "locating": "訳語の位置を特定中…",
@@ -107,6 +110,7 @@
     "downloadingFiles_one": "{{count}}件のファイルをダウンロード中",
     "downloadingFiles_other": "{{count}}件のファイルをダウンロード中",
     "modelDownload": "モデルのダウンロード",
+    "fastSfxProgress": "擬音語の高速翻訳 · {{completed}} / {{total}} 語",
     "processing": "処理中",
     "processingFailed": "処理に失敗しました。",
     "stop": "停止",

@@ -13,6 +13,7 @@
     "hidden": "隐藏文字（{{count}}）"
   },
   "review": {
+    "term": "等确认个术语 · {{source}}",
     "locationConflict": "定位着个文字没通过替换检查，请对照原句核对译名。",
     "candidate": "术语替换 · {{source}} → {{expected}}",
     "currentTranslation": "当前译文",
@@ -36,6 +37,8 @@
     "wiki": "LLM Wiki 链接"
   },
   "glossary": {
+    "clearProject": "清空项目术语表",
+    "clearDescription": "会删脱本项目个全部术语、禁翻词条、候选译名搭等确认个术语建议。可以撤销。",
     "applyToTranslations": "应用到已有译文",
     "locatorModel": "句子里向个译名由术语分析模型定位。",
     "locating": "正在寻译名位置…",
@@ -107,6 +110,7 @@
     "downloadingFiles_one": "来勒下载 {{count}} 个文件",
     "downloadingFiles_other": "来勒下载 {{count}} 个文件",
     "modelDownload": "模型下载",
+    "fastSfxProgress": "快速翻译拟声词 · {{completed}} / {{total}} 个词",
     "processing": "来勒处理",
     "processingFailed": "处理失败哉。",
     "stop": "停止",

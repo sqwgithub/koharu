@@ -25,18 +25,20 @@ pub async fn answer(
     instruction: &str,
     input: String,
     reasoning: Option<Reasoning>,
-) -> Result<String, PromptError> {
+    max_tokens: Option<u64>,
+) -> Result<PromptResponse, PromptError> {
     let spec = model.spec();
     let reasoning = reasoning.filter(|choice| {
         *choice != Reasoning::Off
             || spec
                 .is_some_and(|spec| go_deepseek(spec) || spec.reasoning.can_disable() == Some(true))
     });
-    let request = answers(model, schema, reasoning)
-        .preamble(instruction)
-        .build()
-        .prompt(input);
-    Ok(complete(model, request).await?.output())
+    let mut builder = answers(model, schema, reasoning);
+    if let Some(limit) = max_tokens {
+        builder = builder.max_tokens(limit);
+    }
+    let request = builder.preamble(instruction).build().prompt(input);
+    complete(model, request).await
 }
 
 /// Go streams long responses so that the connection can deliver the model's

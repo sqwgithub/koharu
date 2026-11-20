@@ -13,6 +13,7 @@
     "hidden": "Gizli metin ({{count}})"
   },
   "review": {
+    "term": "İncelenecek terim · {{source}}",
     "locationConflict": "Değiştirilecek metin doğrulanamadı. Terimi mevcut çeviride kontrol edin.",
     "candidate": "Terim değişikliği · {{source}} → {{expected}}",
     "currentTranslation": "Mevcut çeviri",
@@ -36,6 +37,8 @@
     "wiki": "LLM Wiki bağlantısı"
   },
   "glossary": {
+    "clearProject": "Proje sözlüğünü temizle",
+    "clearDescription": "Bu projedeki tüm terimler, çevrilmeyecek girdiler, çeviri önerileri ve onay bekleyen terim önerileri silinecek. Bu işlemi geri alabilirsiniz.",
     "applyToTranslations": "Mevcut çevirilere uygula",
     "locatorModel": "Terim analizi modeli terimleri cümle içinde bulur.",
     "locating": "Terimler bulunuyor…",
@@ -107,6 +110,7 @@
     "downloadingFiles_one": "{{count}} dosya indiriliyor",
     "downloadingFiles_other": "{{count}} dosya indiriliyor",
     "modelDownload": "Model indirme",
+    "fastSfxProgress": "Hızlı ses efekti çevirisi · {{completed}} / {{total}}",
     "processing": "İşleniyor",
     "processingFailed": "İşleme başarısız oldu.",
     "stop": "Durdur",

@@ -158,6 +158,14 @@ struct Reply {
     texts: Vec<Row>,
 }
 
+fn reply_schema(rows: usize) -> schemars::Schema {
+    let mut schema = schemars::schema_for!(Reply);
+    let texts = &mut schema.ensure_object()["properties"]["texts"];
+    texts["minItems"] = json!(rows);
+    texts["maxItems"] = json!(rows);
+    schema
+}
+
 struct Batch<'a> {
     system: String,
     fields: Vec<(String, &'a str)>,
@@ -211,21 +219,31 @@ impl<'a> Batch<'a> {
             () = cancel.cancelled() => return Err(Stopped.into()),
             fit = conversation.context.fit_request(model, pending_tokens as u64) => fit?,
         }
-        let schema = schemars::schema_for!(Reply);
         let mut pending: BTreeMap<&str, &str> = self
             .fields
             .iter()
             .map(|(id, source)| (id.as_str(), *source))
             .collect();
         let mut accepted = BTreeMap::new();
-        for attempt in 0..2 {
+        let mut requests = VecDeque::from([pending.clone()]);
+        let mut first = true;
+        while let Some(requested) = requests.pop_front() {
             let mut input = self.input.clone();
-            if attempt > 0 {
-                input["retry_ids"] = json!(pending.keys().collect::<Vec<_>>());
+            if !first {
+                input["texts"] = json!(
+                    self.fields
+                        .iter()
+                        .filter(|(id, _)| requested.contains_key(id.as_str()))
+                        .map(|(id, source)| json!({"id": id, "source": source}))
+                        .collect::<Vec<_>>()
+                );
             }
-            let request = koharu_llm::answers(model, schema.clone(), reasoning)
+            let request = koharu_llm::answers(model, reply_schema(requested.len()), reasoning)
                 .max_tokens(u64::from(max_output))
-                .preamble(&self.system)
+                .preamble(format!(
+                    "{}\nThis request has {} target IDs in texts. Return one row for every target ID exactly once.",
+                    self.system, requested.len()
+                ))
                 .build()
                 .prompt(input.to_string())
                 .history(
@@ -240,17 +258,29 @@ impl<'a> Batch<'a> {
                 () = cancel.cancelled() => return Err(Stopped.into()),
                 response = koharu_llm::complete(model, request) => response?,
             };
-            match aligned(&response.output(), &pending) {
+            let output = response.output();
+            let call = response.completion_calls.last();
+            tracing::info!(
+                retry = !first, requested = requested.len(), first_id = ?requested.keys().next(),
+                last_id = ?requested.keys().next_back(), response_bytes = output.len(),
+                finish_reason = ?call.and_then(|call| call.finish_reason.as_ref()),
+                usage = ?call.map(|call| call.usage),
+                "received project translation reply"
+            );
+            match aligned(&output, &requested) {
                 Ok(rows) => {
                     for (id, translation) in rows {
                         pending.remove(id.as_str());
                         accepted.insert(id, translation);
                     }
                 }
-                Err(error) if attempt == 0 => {
+                Err(error) if first => {
                     tracing::warn!(%error, "retrying malformed translation batch")
                 }
-                Err(error) => return Err(error),
+                Err(error) => {
+                    tracing::warn!(%error, "invalid translation retry reply");
+                    return Err(error);
+                }
             }
             if pending.is_empty() {
                 let translations: Vec<_> = self
@@ -268,6 +298,24 @@ impl<'a> Batch<'a> {
                     .map_or_else(Usage::default, |call| call.usage);
                 return Ok((self.rules.restore(&translations), usage));
             }
+            if first {
+                let mut pages = BTreeMap::<_, BTreeMap<_, _>>::new();
+                for (&id, &source) in &pending {
+                    let page = id
+                        .split_once('-')
+                        .expect("project block ID includes its page")
+                        .0;
+                    pages.entry(page).or_default().insert(id, source);
+                }
+                tracing::warn!(
+                    missing = pending.len(),
+                    fields = self.fields.len(),
+                    pages = pages.len(),
+                    "retrying unverified translation rows by page"
+                );
+                requests.extend(pages.into_values());
+                first = false;
+            }
         }
         anyhow::bail!(
             "missing or misaligned translations after retry: {}",
@@ -282,21 +330,31 @@ fn aligned(
     expected: &BTreeMap<&str, &str>,
 ) -> Result<BTreeMap<String, super::TextAnswer>> {
     let reply: Reply = serde_json::from_str(output).context("invalid translation JSON")?;
-    let mut seen = BTreeSet::new();
+    let mut missing: BTreeSet<_> = expected.keys().copied().collect();
+    let mut rejected = BTreeMap::new();
+    let mut unexpected = 0;
     let mut valid = BTreeMap::new();
+    let returned = reply.texts.len();
     for row in reply.texts {
-        let source = expected
-            .get(row.id.as_str())
-            .with_context(|| format!("unexpected translation ID {}", row.id))?;
-        if !seen.insert(row.id.clone()) {
+        let Some((&id, &source)) = expected.get_key_value(row.id.as_str()) else {
+            unexpected += 1;
+            continue;
+        };
+        let issue = if !missing.remove(id) {
+            Some("duplicate_id")
+        } else if row.source != source {
+            Some("source_mismatch")
+        } else if row.translation.trim().is_empty() {
+            Some("blank_translation")
+        } else if row.reason.as_ref().is_some_and(|r| r.trim().is_empty()) {
+            Some("blank_review_reason")
+        } else {
+            None
+        };
+        if let Some(issue) = issue {
             valid.remove(&row.id);
-        } else if row.source == *source
-            && !row.translation.trim().is_empty()
-            && row
-                .reason
-                .as_ref()
-                .is_none_or(|reason| !reason.trim().is_empty())
-        {
+            rejected.insert(id, issue);
+        } else {
             valid.insert(
                 row.id,
                 super::TextAnswer {
@@ -306,6 +364,21 @@ fn aligned(
             );
         }
     }
+    if valid.len() != expected.len() || unexpected > 0 {
+        tracing::warn!(
+            requested = expected.len(),
+            returned,
+            matched = valid.len(),
+            ?missing,
+            ?rejected,
+            unexpected,
+            "project translation reply did not match its targets"
+        );
+    }
+    ensure!(
+        unexpected == 0,
+        "translation reply contains {unexpected} unexpected IDs"
+    );
     Ok(valid)
 }
 
@@ -403,11 +476,7 @@ pub(super) async fn translate(
     // Keep room for conversation history and for reasoning. The reply echoes
     // each source and can expand in translation, even with very little input.
     let window = spec.and_then(|s| s.input_limit()).unwrap_or(32768) as usize;
-    let max_output = spec
-        .and_then(|s| s.max_output_tokens)
-        .unwrap_or(8192)
-        .min(16384)
-        .min(spec.and_then(|s| s.context_window).unwrap_or(32768) / 2);
+    let max_output = super::model::batch_output_limit(spec);
     let reference_budget = 1536.min(window / 24);
     let budget = Budget {
         input: window / 3 - reference_budget,
@@ -416,7 +485,7 @@ pub(super) async fn translate(
     };
     let targets = lines.iter().map(|line| line.layer).collect();
     let system = format!(
-        "Translate the supplied manga dialogue into {}. Read the texts across pages in story order (P = page, B = block) and use the project history for names, voice and terminology. Translate each text only from its own source. Return JSON with a texts array of objects containing id, source copied exactly, and a nonempty translation. Preserve separate bubbles. Only texts entries are translation targets. Read context_only and previously saved reference entries for context and consistent terminology. The current source takes precedence. When retry_ids is present, return only those IDs. {} Put the reason in the optional reason field of the relevant row; use null or omit it for confident rows.\n\n{}",
+        "Translate the supplied manga dialogue into {}. Read the texts across pages in story order (P = page, B = block) and use the project history for names, voice and terminology. Translate each text only from its own source. Return JSON with a texts array of objects containing id, source copied exactly, and a nonempty translation. Preserve separate bubbles. Only texts entries are translation targets. Read context_only and previously saved reference entries for context and consistent terminology. The current source takes precedence. Return exactly the IDs in texts. {} Put the reason in the optional reason field of the relevant row; use null or omit it for confident rows.\n\n{}",
         name(&translator.target)?,
         super::REVIEW_INSTRUCTION,
         translator.instructions
@@ -753,6 +822,13 @@ mod tests {
     #[test]
     fn retries_only_missing_duplicate_or_misaligned_ids() -> Result<()> {
         let expected = BTreeMap::from([("a", "Hello"), ("b", "Hi"), ("c", "Bye"), ("d", "Hello")]);
+        for size in [expected.len(), 1] {
+            let schema = serde_json::to_value(reply_schema(size))?;
+            let texts = &schema["properties"]["texts"];
+            assert_eq!(texts["minItems"], size);
+            assert_eq!(texts["maxItems"], size);
+            assert!(texts["items"].is_object());
+        }
         let output = json!({"texts":[
             {"id":"a","source":"Hello","translation":"A","reason":"Unknown speaker"},
             {"id":"b","source":"Hi","translation":"B"},

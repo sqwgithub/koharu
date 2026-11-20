@@ -121,6 +121,16 @@ pub(super) async fn translate(
     if groups.is_empty() {
         return Ok(());
     }
+    let total = groups.values().map(BTreeMap::len).sum();
+    let mut completed = 0;
+    let progress = |completed| {
+        task.events.send(crate::Event::FastSfxProgress {
+            run: member.run,
+            completed,
+            total,
+        });
+    };
+    progress(completed);
     let mut model = None;
     for (language, words) in groups {
         let key = pair(&language, &config.translator.target);
@@ -195,6 +205,8 @@ pub(super) async fn translate(
                 })
                 .await??;
                 handled.extend(ids);
+                completed += n;
+                progress(completed);
             }
         }
     }

@@ -13,6 +13,7 @@
     "hidden": "Hidden text ({{count}})"
   },
   "review": {
+    "term": "Term to review · {{source}}",
     "locationConflict": "The located text could not be safely replaced. Check the term in the current translation.",
     "candidate": "Term replacement · {{source}} → {{expected}}",
     "currentTranslation": "Current translation",
@@ -36,6 +37,8 @@
     "wiki": "LLM Wiki link"
   },
   "glossary": {
+    "clearProject": "Clear project glossary",
+    "clearDescription": "Remove all terms, do-not-translate entries, candidate translations, and pending terminology suggestions from this project. You can undo this change.",
     "applyToTranslations": "Apply to existing translations",
     "locatorModel": "The terminology analysis model locates terms within sentences.",
     "locating": "Locating terms…",
@@ -107,6 +110,7 @@
     "downloadingFiles_one": "Downloading {{count}} file",
     "downloadingFiles_other": "Downloading {{count}} files",
     "modelDownload": "Model download",
+    "fastSfxProgress": "Fast sound-effect translation · {{completed}} / {{total}} terms",
     "processing": "Processing",
     "processingFailed": "Processing failed.",
     "stop": "Stop",

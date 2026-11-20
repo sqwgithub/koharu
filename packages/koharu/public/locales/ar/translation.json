@@ -13,6 +13,7 @@
     "hidden": "النص المخفي ({{count}})"
   },
   "review": {
+    "term": "مصطلح للمراجعة · {{source}}",
     "locationConflict": "تعذّر التحقق من موضع الاستبدال. راجع المصطلح في الترجمة الحالية.",
     "candidate": "استبدال المصطلح · {{source}} ← {{expected}}",
     "currentTranslation": "الترجمة الحالية",
@@ -36,6 +37,8 @@
     "wiki": "رابط LLM Wiki"
   },
   "glossary": {
+    "clearProject": "إفراغ مسرد المشروع",
+    "clearDescription": "ستُحذف جميع المصطلحات والمدخلات المستثناة من الترجمة والترجمات المقترحة واقتراحات المصطلحات التي تنتظر المراجعة لهذا المشروع. يمكنك التراجع عن هذا الإجراء.",
     "applyToTranslations": "تطبيق على الترجمات الحالية",
     "locatorModel": "يحدّد نموذج تحليل المصطلحات مواضعها في الجمل.",
     "locating": "جارٍ تحديد مواضع المصطلحات…",
@@ -107,6 +110,7 @@
     "downloadingFiles_one": "جارٍ تنزيل {{count}} ملف",
     "downloadingFiles_other": "جارٍ تنزيل {{count}} من الملفات",
     "modelDownload": "تنزيل النموذج",
+    "fastSfxProgress": "الترجمة السريعة للمؤثرات الصوتية · {{completed}} / {{total}}",
     "processing": "قيد المعالجة",
     "processingFailed": "فشلت المعالجة.",
     "stop": "إيقاف",

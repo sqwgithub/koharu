@@ -103,6 +103,27 @@ export function ReviewPanel({ project }: { project: ProjectId }) {
     )
   }
   const items = [
+    ...(data.candidates ?? []).flatMap(({ pending, entries, locations }) => {
+      const entry = entries[0]
+      if (!pending || !entry) return []
+      return [
+        {
+          id: JSON.stringify(['term', entry]),
+          title: t('review.term', { source: entry.source }),
+          reason: entry.note,
+          translation: entry.translation || entry.source,
+          locations: locations.slice(0, 1),
+          previous: '',
+          candidate: null,
+          confirmOnly: false,
+          resolve: (translation: string | null) =>
+            call(commands.edit, {
+              label: 'edit_glossary',
+              ops: [{ op: 'resolve_glossary_term', project, candidate: entry, translation }],
+            }),
+        },
+      ]
+    }),
     ...data.candidate_reviews.map((suggestion) => ({
       id: JSON.stringify(['candidate', suggestion]),
       title: t('review.candidate', { source: suggestion.source, expected: suggestion.expected }),
@@ -201,7 +222,7 @@ export function ReviewPanel({ project }: { project: ProjectId }) {
                 {item.previous}
               </p>
             )}
-            <p className='wrap-anywhere text-muted-foreground'>{item.reason}</p>
+            {item.reason && <p className='wrap-anywhere text-muted-foreground'>{item.reason}</p>}
             <ul className='space-y-1'>
               {item.locations.map((location) => (
                 <li key={location.layer}>
