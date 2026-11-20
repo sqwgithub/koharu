@@ -634,6 +634,12 @@ export type Outcome = { kind: "done" } |
 /**  The first failure ends the run; what it finished stays. */
 { kind: "failed"; page: PageId; stage: Stage; reason: string } | { kind: "stopped" };
 
+export type OutputConfig = {
+	jpeg_quality?: number,
+	scale_percent?: number,
+	auto_compress?: boolean,
+};
+
 /**
  *  A page: its size, the scan under it, and its layers with everything
  *  inside them.
@@ -708,6 +714,7 @@ export type PipelineEvent =
 export type Preferences = {
 	pipeline: PipelineConfig,
 	renderer: RendererConfig,
+	output: OutputConfig,
 	agent: AgentConfig,
 	providers: Providers,
 };
@@ -1004,6 +1011,8 @@ export type TranslatorConfig = {
 	 *  can't stop reasoning.
 	 */
 	reasoning?: string | null,
+	/**  Maximum generated tokens per translation request, including reasoning. */
+	max_output_tokens?: number | null,
 };
 
 /**  The text being typed into, as the host shows it. */

@@ -507,6 +507,8 @@
         "instructions": "Additional instructions",
         "instructionsDescription": "Optional, in any language and form, such as a name's spelling or the tone. Koharu adds them, as written, after its own system prompt.",
         "reasoning": "Reasoning",
+        "maxOutputTokens": "Maximum output tokens",
+        "maxOutputTokensDescription": "Maximum tokens per translation request, including reasoning. Leave blank to use the default.",
         "reasoningDescription": "Use model reasoning during translation.",
         "targetLanguageDescription": "Choose the language to translate text into.",
         "vision": "Vision",
@@ -534,7 +536,18 @@
       "subscription": "Subscription",
       "title": "Providers"
     },
+    "output": {
+      "description": "Set export quality for PNG, CBZ and JPEG ZIP. PSD uses the original project dimensions.",
+      "images": "Images",
+      "scale": "Output scale",
+      "scaleDescription": "Scale both dimensions proportionally. 100% keeps the original size.",
+      "jpegQuality": "JPEG quality",
+      "jpegDescription": "Applies to JPEG ZIP. Higher quality preserves text edges and produces larger files.",
+      "auto": "Automatic compression",
+      "autoDescription": "Use stronger lossless PNG compression. For JPEGs over 1 MiB, reduce quality in steps down to 60, or keep your setting if it is lower."
+    },
     "tabs": {
+      "output": "Output",
       "appearance": "Appearance",
       "pipeline": "Pipeline",
       "providers": "Providers",

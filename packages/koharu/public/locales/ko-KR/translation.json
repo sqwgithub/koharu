@@ -507,6 +507,8 @@
         "instructions": "추가 지시",
         "instructionsDescription": "선택 사항이며 어떤 언어와 형식으로든 쓸 수 있습니다(이름 표기나 말투 등). Koharu는 자체 시스템 프롬프트 뒤에 쓴 그대로 덧붙입니다.",
         "reasoning": "추론",
+        "maxOutputTokens": "최대 출력 토큰 수",
+        "maxOutputTokensDescription": "추론 토큰을 포함한 번역 요청당 출력 한도입니다. 비워 두면 기본값을 사용합니다.",
         "reasoningDescription": "번역할 때 모델 추론을 사용합니다.",
         "targetLanguageDescription": "텍스트를 번역할 언어를 선택합니다.",
         "vision": "비전",
@@ -534,7 +536,18 @@
       "subscription": "구독",
       "title": "제공자"
     },
+    "output": {
+      "description": "PNG, CBZ 및 JPEG ZIP의 내보내기 품질을 설정합니다. PSD는 프로젝트 원본 크기를 사용합니다.",
+      "images": "이미지",
+      "scale": "출력 배율",
+      "scaleDescription": "가로와 세로를 같은 비율로 줄입니다. 100%는 원본 크기입니다.",
+      "jpegQuality": "JPEG 품질",
+      "jpegDescription": "JPEG ZIP에 적용됩니다. 품질이 높을수록 글자 윤곽이 선명해지고 파일이 커집니다.",
+      "auto": "자동 압축",
+      "autoDescription": "PNG에 더 강한 무손실 압축을 적용합니다. 1 MiB를 넘는 JPEG는 품질을 60까지 단계적으로 낮춥니다. 설정값이 더 낮으면 그대로 사용합니다."
+    },
     "tabs": {
+      "output": "출력",
       "appearance": "모양",
       "pipeline": "파이프라인",
       "providers": "제공자",

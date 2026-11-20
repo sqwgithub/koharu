@@ -91,7 +91,7 @@ pub(crate) struct Scheduler {
     runs: Vec<Run>,
     /// A permit for each page in flight, which its task holds.
     ahead: Arc<Semaphore>,
-    tasks: JoinSet<Result<(), String>>,
+    tasks: JoinSet<Result<(), (PageId, String)>>,
     running: HashMap<task::Id, Running>,
     conversations: Conversations,
     /// When the models no setting uses leave: `KEEP` after a run last ended.
@@ -177,7 +177,7 @@ impl Scheduler {
         }
     }
 
-    fn done(&mut self, joined: Result<(task::Id, Result<(), String>), JoinError>) {
+    fn done(&mut self, joined: Result<(task::Id, Result<(), (PageId, String)>), JoinError>) {
         let id = match &joined {
             Ok((id, _)) => *id,
             Err(error) => error.id(),
@@ -188,7 +188,7 @@ impl Scheduler {
             .expect("every task is recorded when it starts");
         let result = match joined {
             Ok((_, result)) => result,
-            Err(error) => Err(format!("{stage} failed: {error}")),
+            Err(error) => Err((page, format!("{stage} failed: {error}"))),
         };
         let runs = std::mem::take(&mut self.runs);
         let mut ended = false;
@@ -217,7 +217,7 @@ impl Scheduler {
                     }
                 }
             }
-            Err(reason) => {
+            Err((page, reason)) => {
                 for run in runs {
                     if jobs.iter().any(|&(id, _)| id == run.id) {
                         ended = true;

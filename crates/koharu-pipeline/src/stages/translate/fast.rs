@@ -186,7 +186,7 @@ pub(super) async fn translate(
                         batch.iter().map(|(_, rows)| rows[0].id),
                         &[],
                         None,
-                        config.translator.reasoning,
+                        &config.translator,
                         &member.cancel,
                     );
                     turn.take(None, model.as_ref().expect("loaded for a cache miss"))

@@ -507,6 +507,8 @@
         "instructions": "追加の指示",
         "instructionsDescription": "任意。どの言語・形式でも書けます（名前の表記や口調など）。Koharu は自身のシステムプロンプトの後に、書いたとおりに追加します。",
         "reasoning": "推論",
+        "maxOutputTokens": "最大出力トークン数",
+        "maxOutputTokensDescription": "翻訳リクエストごとの上限です。推論用のトークンも含みます。空欄にすると既定値を使います。",
         "reasoningDescription": "翻訳時にモデルの推論を使用します。",
         "targetLanguageDescription": "テキストの翻訳先言語を選択します。",
         "vision": "ビジョン",
@@ -534,7 +536,18 @@
       "subscription": "サブスクリプション",
       "title": "プロバイダー"
     },
+    "output": {
+      "description": "PNG、CBZ、JPEG ZIP の書き出し品質を設定します。PSD はプロジェクトの元のサイズで書き出します。",
+      "images": "画像",
+      "scale": "出力倍率",
+      "scaleDescription": "縦横比を保って縮小します。100% は元のサイズです。",
+      "jpegQuality": "JPEG 品質",
+      "jpegDescription": "JPEG ZIP に適用します。高くすると文字の輪郭が鮮明になり、ファイルが大きくなります。",
+      "auto": "自動圧縮",
+      "autoDescription": "PNG の可逆圧縮を強めます。1 MiB を超える JPEG は品質を段階的に 60 まで下げます。設定値が 60 未満の場合はその値を使います。"
+    },
     "tabs": {
+      "output": "出力",
       "appearance": "外観",
       "pipeline": "パイプライン",
       "providers": "プロバイダー",

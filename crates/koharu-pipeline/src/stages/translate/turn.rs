@@ -4,7 +4,7 @@ use anyhow::{Context as _, Result, bail, ensure};
 use futures::future::join_all;
 use koharu_llm::rig::{
     completion::{
-        AssistantContent, Message, Reasoning, Usage,
+        AssistantContent, Message, Usage,
         message::{DocumentSourceKind, Image, ImageMediaType, UserContent},
     },
     driver::DynModel,
@@ -33,7 +33,7 @@ pub(super) struct Turn<'a> {
     texts: &'a [String],
     /// The page, which the model sees with its texts.
     image: Option<&'a str>,
-    reasoning: Option<Reasoning>,
+    translator: &'a super::TranslatorConfig,
     cancel: &'a CancellationToken,
 }
 
@@ -44,7 +44,7 @@ impl<'a> Turn<'a> {
         layers: impl ExactSizeIterator<Item = LayerId>,
         glossary: &'a [GlossaryEntry],
         image: Option<&'a str>,
-        reasoning: Option<Reasoning>,
+        translator: &'a super::TranslatorConfig,
         cancel: &'a CancellationToken,
     ) -> Self {
         Self {
@@ -53,7 +53,7 @@ impl<'a> Turn<'a> {
             glossary,
             texts,
             image,
-            reasoning,
+            translator,
             cancel,
         }
     }
@@ -244,7 +244,11 @@ impl<'a> Turn<'a> {
         );
         let mut retry = false;
         loop {
-            let request = koharu_llm::answers(model, schema.clone(), self.reasoning)
+            let mut builder = koharu_llm::answers(model, schema.clone(), self.translator.reasoning);
+            if let Some(limit) = self.translator.output_limit(model.spec()) {
+                builder = builder.max_tokens(u64::from(limit));
+            }
+            let request = builder
                 .preamble(&system)
                 .build()
                 .prompt(prompt.clone())

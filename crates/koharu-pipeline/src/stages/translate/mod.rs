@@ -59,6 +59,8 @@ pub struct TranslatorConfig {
     #[serde(with = "koharu_llm::reasoning")]
     #[specta(type = Option<String>)]
     pub reasoning: Option<Reasoning>,
+    /// Maximum generated tokens per translation request, including reasoning.
+    pub max_output_tokens: Option<std::num::NonZeroU32>,
 }
 
 impl Default for TranslatorConfig {
@@ -73,6 +75,7 @@ impl Default for TranslatorConfig {
             vision: false,
             fast_sfx: false,
             reasoning: None,
+            max_output_tokens: None,
         }
     }
 }
@@ -195,7 +198,7 @@ pub(crate) async fn translate(
         blocks.iter().map(|(layer, _)| *layer),
         &effective,
         image.as_deref(),
-        translator.reasoning,
+        &translator,
         &member.cancel,
     );
     let Some(translations) = turn

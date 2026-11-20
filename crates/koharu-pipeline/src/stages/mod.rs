@@ -125,6 +125,13 @@ pub(crate) struct Task {
 #[error("the run stopped")]
 pub(crate) struct Stopped;
 
+#[derive(Debug, thiserror::Error)]
+#[error("{block}")]
+struct FailedPage {
+    page: PageId,
+    block: String,
+}
+
 impl Task {
     /// `work` on the GPU thread at the task's place in line, with `members`
     /// started then. A stopped run's work is dropped unrun, and a panicking
@@ -194,7 +201,7 @@ pub(crate) struct Inputs {
 }
 
 /// Runs `task`'s stage: its failure, if any, as the run reports it.
-pub(crate) async fn run(mut task: Task, inputs: Inputs) -> Result<(), String> {
+pub(crate) async fn run(mut task: Task, inputs: Inputs) -> Result<(), (PageId, String)> {
     let stage = task.stage;
     let config = &inputs.config;
     task.members.retain_mut(|member| {
@@ -235,6 +242,7 @@ pub(crate) async fn run(mut task: Task, inputs: Inputs) -> Result<(), String> {
     if task.members.is_empty() {
         return Ok(());
     }
+    let first_page = task.members[0].page;
     let result = match stage {
         Stage::Detect => detect::detect(&task, config).await,
         Stage::Recognize => recognize::recognize(&task, config).await,
@@ -252,11 +260,14 @@ pub(crate) async fn run(mut task: Task, inputs: Inputs) -> Result<(), String> {
             if stage == Stage::Glossary {
                 tracing::warn!(run = task.members[0].run.0, error = %format_args!("{error:#}"), "glossary analysis failed");
             }
+            let page = error
+                .downcast_ref::<FailedPage>()
+                .map_or(first_page, |failure| failure.page);
             let error = anyhow::Error::from(Error::Stage {
                 stage,
                 source: error,
             });
-            Err(format!("{error:#}"))
+            Err((page, format!("{error:#}")))
         }
         _ => Ok(()),
     }

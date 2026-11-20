@@ -23,6 +23,7 @@ import type {
 } from '@koharu/ipc/protocol'
 import { Badge } from '@koharu/ui/components/badge'
 import { Button } from '@koharu/ui/components/button'
+import { Input } from '@koharu/ui/components/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@koharu/ui/components/popover'
 import {
   Select,
@@ -412,6 +413,26 @@ function TranslatorOptions({
           onChange={(level) =>
             onChange({ ...value, reasoning: level === 'default' ? null : level })
           }
+        />
+      </PreferenceRow>
+      <PreferenceRow
+        title={t('settings.pipeline.translator.maxOutputTokens')}
+        description={t('settings.pipeline.translator.maxOutputTokensDescription')}
+      >
+        <Input
+          type='number'
+          min={1}
+          max={4294967295}
+          step={1}
+          aria-label={t('settings.pipeline.translator.maxOutputTokens')}
+          placeholder={t('model.default')}
+          value={value.max_output_tokens ?? ''}
+          className='h-8 text-[12px]'
+          onChange={({ currentTarget }) => {
+            if (currentTarget.validity.valid) {
+              onChange({ ...value, max_output_tokens: currentTarget.valueAsNumber || null })
+            }
+          }}
         />
       </PreferenceRow>
       <PreferenceRow

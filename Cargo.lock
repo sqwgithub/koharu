@@ -5650,6 +5650,7 @@ dependencies = [
  "arboard",
  "cef",
  "dirs 7.0.0",
+ "fast_image_resize",
  "fs-err",
  "futures",
  "globset",

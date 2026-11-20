@@ -5,9 +5,11 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use anyhow::{Context as _, Result, ensure};
 use icu_locale_core::LanguageIdentifier;
+use koharu_llm::PromptError;
 use koharu_llm::rig::{
-    completion::{Message, Reasoning, Usage},
+    completion::{FinishReason, Message, Reasoning, Usage},
     driver::DynModel,
+    error::ProviderError,
     operation::Completion,
 };
 use koharu_scene::{Content, Edit, GlossaryEntry, LayerId, PageId, Project};
@@ -17,6 +19,7 @@ use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
 use super::{Conversation, Member, Stopped, Task, name, rules::Rules, written};
+use crate::stages::FailedPage;
 use crate::{PipelineConfig, Stage};
 
 #[derive(Clone)]
@@ -171,6 +174,7 @@ struct Batch<'a> {
     fields: Vec<(String, &'a str)>,
     input: serde_json::Value,
     rules: Rules<'a>,
+    pages: BTreeMap<&'a str, PageId>,
 }
 
 impl<'a> Batch<'a> {
@@ -195,10 +199,29 @@ impl<'a> Batch<'a> {
             input["context_only"] = json!(context);
         }
         Self {
+            pages: lines
+                .iter()
+                .map(|line| (line.id.split_once('-').unwrap().0, line.page))
+                .collect(),
             system,
             fields,
             input,
             rules,
+        }
+    }
+
+    fn page(&self, index: usize) -> PageId {
+        let (page, _) = self.fields[index]
+            .0
+            .split_once('-')
+            .expect("a snapshot block ID");
+        self.pages[page]
+    }
+
+    fn location(&self, index: usize) -> FailedPage {
+        FailedPage {
+            page: self.page(index),
+            block: self.fields[index].0.clone(),
         }
     }
 
@@ -217,26 +240,16 @@ impl<'a> Batch<'a> {
         tokio::select! {
             biased;
             () = cancel.cancelled() => return Err(Stopped.into()),
-            fit = conversation.context.fit_request(model, pending_tokens as u64) => fit?,
+            fit = conversation.context.fit_request(model, pending_tokens as u64) => fit.with_context(|| self.location(0))?,
         }
-        let mut pending: BTreeMap<&str, &str> = self
-            .fields
-            .iter()
-            .map(|(id, source)| (id.as_str(), *source))
-            .collect();
-        let mut accepted = BTreeMap::new();
-        let mut requests = VecDeque::from([pending.clone()]);
-        let mut first = true;
-        while let Some(requested) = requests.pop_front() {
+        let context = &conversation.context;
+        self.retry_rows(max_output, |requested, retry| async move {
             let mut input = self.input.clone();
-            if !first {
-                input["texts"] = json!(
-                    self.fields
-                        .iter()
-                        .filter(|(id, _)| requested.contains_key(id.as_str()))
-                        .map(|(id, source)| json!({"id": id, "source": source}))
-                        .collect::<Vec<_>>()
-                );
+            if retry {
+                input["texts"] = json!(requested.iter().map(|&index| {
+                    let (id, source) = &self.fields[index];
+                    json!({"id": id, "source": source})
+                }).collect::<Vec<_>>());
             }
             let request = koharu_llm::answers(model, reply_schema(requested.len()), reasoning)
                 .max_tokens(u64::from(max_output))
@@ -247,80 +260,114 @@ impl<'a> Batch<'a> {
                 .build()
                 .prompt(input.to_string())
                 .history(
-                    conversation
-                        .context
-                        .messages()
+                    context.messages()
                         .iter()
                         .map(|m| Message::clone(m)),
                 );
             let response = tokio::select! {
                 biased;
                 () = cancel.cancelled() => return Err(Stopped.into()),
-                response = koharu_llm::complete(model, request) => response?,
+                response = koharu_llm::complete(model, request) => response,
+            };
+            let response = match response {
+                Ok(response) => response,
+                Err(PromptError::Provider(ProviderError::Response(message)))
+                    if message == FinishReason::Length.no_answer_message() => return Ok(None),
+                Err(error) => return Err(error.into()),
             };
             let output = response.output();
             let call = response.completion_calls.last();
+            let finish = call.and_then(|call| call.finish_reason.as_ref());
             tracing::info!(
-                retry = !first, requested = requested.len(), first_id = ?requested.keys().next(),
-                last_id = ?requested.keys().next_back(), response_bytes = output.len(),
-                finish_reason = ?call.and_then(|call| call.finish_reason.as_ref()),
-                usage = ?call.map(|call| call.usage),
+                retry, requested = requested.len(), first_id = %self.fields[requested[0]].0,
+                last_id = %self.fields[*requested.last().unwrap()].0, response_bytes = output.len(),
+                finish_reason = ?finish, usage = ?call.map(|call| call.usage), max_output,
                 "received project translation reply"
             );
-            match aligned(&output, &requested) {
-                Ok(rows) => {
-                    for (id, translation) in rows {
-                        pending.remove(id.as_str());
-                        accepted.insert(id, translation);
-                    }
-                }
-                Err(error) if first => {
-                    tracing::warn!(%error, "retrying malformed translation batch")
-                }
-                Err(error) => {
-                    tracing::warn!(%error, "invalid translation retry reply");
-                    return Err(error);
-                }
-            }
-            if pending.is_empty() {
-                let translations: Vec<_> = self
-                    .fields
+            Ok((finish != Some(&FinishReason::Length)).then(|| (output, call.map_or_else(Usage::default, |c| c.usage))))
+        }).await
+    }
+
+    async fn retry_rows<F: Future<Output = Result<Option<(String, Usage)>>> + Send>(
+        &self,
+        max_output: u32,
+        mut ask: impl FnMut(Vec<usize>, bool) -> F + Send,
+    ) -> Result<(Vec<super::TextAnswer>, Usage)> {
+        let mut requests = VecDeque::from([(0..self.fields.len()).collect::<Vec<_>>()]);
+        let mut accepted = BTreeMap::new();
+        let mut usage = Usage::default();
+        let mut retry = false;
+        while let Some(mut requested) = requests.pop_front() {
+            let first = requested[0];
+            let response = ask(requested.clone(), retry)
+                .await
+                .with_context(|| self.location(first))?;
+            let truncated = response.is_none();
+            if let Some((output, used)) = response {
+                let expected = requested
                     .iter()
-                    .map(|(id, _)| {
-                        accepted
-                            .remove(id)
-                            .expect("every requested ID was accepted")
+                    .map(|&i| {
+                        let (id, source) = &self.fields[i];
+                        (id.as_str(), *source)
                     })
                     .collect();
-                let usage = response
-                    .completion_calls
-                    .last()
-                    .map_or_else(Usage::default, |call| call.usage);
-                return Ok((self.rules.restore(&translations), usage));
-            }
-            if first {
-                let mut pages = BTreeMap::<_, BTreeMap<_, _>>::new();
-                for (&id, &source) in &pending {
-                    let page = id
-                        .split_once('-')
-                        .expect("project block ID includes its page")
-                        .0;
-                    pages.entry(page).or_default().insert(id, source);
+                match aligned(&output, &expected) {
+                    Ok(rows) => accepted.extend(rows),
+                    Err(error) if !retry => {
+                        tracing::warn!(%error, "retrying malformed translation batch")
+                    }
+                    Err(error) => return Err(error.context(self.location(first))),
                 }
-                tracing::warn!(
-                    missing = pending.len(),
-                    fields = self.fields.len(),
-                    pages = pages.len(),
-                    "retrying unverified translation rows by page"
-                );
-                requests.extend(pages.into_values());
-                first = false;
+                requested.retain(|&i| !accepted.contains_key(&self.fields[i].0));
+                if requested.is_empty() {
+                    // A split request's usage cannot measure the combined history.
+                    if !retry {
+                        usage = used;
+                    }
+                    continue;
+                }
+                if retry {
+                    return Err(anyhow::anyhow!(
+                        "missing or misaligned translations after retry: {}",
+                        requested
+                            .iter()
+                            .map(|&i| self.fields[i].0.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                    .context(self.location(requested[0])));
+                }
             }
+            // Retry multi-page requests by page first. Within one truncated page
+            // every child must be strictly smaller, even for an answerless turn.
+            if truncated && requested.len() == 1 {
+                return Err(anyhow::anyhow!("translation reached the output limit of {max_output} tokens for a single text block").context(self.location(first)));
+            }
+            let pages: Vec<_> = requested
+                .chunk_by(|&a, &b| self.page(a) == self.page(b))
+                .collect();
+            tracing::warn!(first_id = %self.fields[requested[0]].0, rows = requested.len(), pages = pages.len(), truncated, max_output, "retrying translation rows");
+            if truncated && pages.len() == 1 {
+                let right = requested.split_off(requested.len().div_ceil(2));
+                requests.push_front(right);
+                requests.push_front(requested);
+            } else {
+                for group in pages.into_iter().rev() {
+                    requests.push_front(group.to_vec());
+                }
+            }
+            retry = true;
         }
-        anyhow::bail!(
-            "missing or misaligned translations after retry: {}",
-            pending.keys().copied().collect::<Vec<_>>().join(", ")
-        )
+        let translations: Vec<_> = self
+            .fields
+            .iter()
+            .map(|(id, _)| {
+                accepted
+                    .remove(id)
+                    .expect("every requested ID was accepted")
+            })
+            .collect();
+        Ok((self.rules.restore(&translations), usage))
     }
 }
 
@@ -435,7 +482,9 @@ impl Budget {
                 .map(|(id, source)| 18 + tokens(id) + 3 * tokens(source))
                 .sum::<usize>();
             if batch.fields.is_empty()
-                || (input <= self.input && output <= self.reply && input + output <= self.total)
+                || (input <= self.input
+                    && (end == 1 || output <= self.reply)
+                    && input + output <= self.total)
             {
                 return Ok((end, batch, input + output));
             }
@@ -476,11 +525,13 @@ pub(super) async fn translate(
     // Keep room for conversation history and for reasoning. The reply echoes
     // each source and can expand in translation, even with very little input.
     let window = spec.and_then(|s| s.input_limit()).unwrap_or(32768) as usize;
-    let max_output = super::model::batch_output_limit(spec);
+    let default_output = super::model::batch_output_limit(spec);
+    let max_output = translator.output_limit(spec).unwrap_or(default_output);
     let reference_budget = 1536.min(window / 24);
     let budget = Budget {
         input: window / 3 - reference_budget,
-        reply: max_output as usize / 2,
+        // A larger output allowance leaves headroom for reasoning on the same batch.
+        reply: max_output.min(default_output) as usize / 2,
         total: window / 2 - reference_budget,
     };
     let targets = lines.iter().map(|line| line.layer).collect();
@@ -502,7 +553,13 @@ pub(super) async fn translate(
             break;
         }
         let pending = remaining.make_contiguous();
-        let (end, mut batch, mut request_tokens) = budget.next(pending, &glossary, &system)?;
+        let location = || FailedPage {
+            page: pending[0].page,
+            block: pending[0].id.clone(),
+        };
+        let (end, mut batch, mut request_tokens) = budget
+            .next(pending, &glossary, &system)
+            .with_context(location)?;
         let current = &pending[..end];
         let pages: BTreeSet<_> = current.iter().map(|line| line.page).collect();
         let starting = task
@@ -523,7 +580,8 @@ pub(super) async fn translate(
                 translator,
                 conversation.context.messages().is_empty(),
                 reference_budget,
-            )?;
+            )
+            .with_context(location)?;
             if !reference.is_empty() {
                 batch.input["reference"] = json!(reference);
                 request_tokens += reference_budget;
@@ -562,6 +620,7 @@ pub(super) async fn translate(
                 }
             })
             .collect();
+        let batch_start = location();
         let current: Vec<_> = remaining.drain(..end).collect();
         let glossary = project.glossary().to_vec();
         let config = config.clone();
@@ -569,7 +628,16 @@ pub(super) async fn translate(
         let committed = tokio::task::spawn_blocking(move || {
             commit_batch(&member, &config, &glossary, current.into_iter().zip(rows))
         })
-        .await??;
+        .await
+        .context("translation commit task failed")
+        .and_then(|result| result)
+        .map_err(|error| {
+            if error.is::<FailedPage>() {
+                error
+            } else {
+                error.context(batch_start)
+            }
+        })?;
         // A page split across requests finishes only after its last rows are committed.
         for page in pages.into_iter().filter(|page| Some(*page) != split_page) {
             task.events.send(crate::Event::Finished {
@@ -615,19 +683,28 @@ fn commit_batch(
         if !project.page(line.page).is_ok_and(|page| !page.excluded) {
             continue;
         }
-        let (page, _) = project.parent(line.layer)?;
-        ensure!(page.id == line.page, "{} moved to another page", line.id);
-        let Content::Block(block) = &project.layer(line.layer)?.content else {
-            anyhow::bail!("{} is no longer a text block", line.id);
+        let location = || FailedPage {
+            page: line.page,
+            block: line.id.clone(),
+        };
+        let (page, _) = project.parent(line.layer).with_context(location)?;
+        if page.id != line.page {
+            return Err(anyhow::anyhow!("text block moved to another page").context(location()));
+        }
+        let Content::Block(block) = &project.layer(line.layer).with_context(location)?.content
+        else {
+            return Err(anyhow::anyhow!("layer is no longer a text block").context(location()));
         };
         let saved = block.translation.as_ref().map(|text| text.content.text());
-        ensure!(
-            block.source.content.text() == line.source
-                && block.source.language == line.language
-                && saved == line.saved,
-            "the source or translation of {} changed during translation",
-            line.id
-        );
+        if block.source.content.text() != line.source
+            || block.source.language != line.language
+            || saved != line.saved
+        {
+            return Err(
+                anyhow::anyhow!("source or translation changed during translation")
+                    .context(location()),
+            );
+        }
         translated.push((
             line.layer,
             line.language,
@@ -816,6 +893,64 @@ mod tests {
         let valid = aligned(&json!({"texts":shuffled}).to_string(), &expected)?;
         assert_eq!(valid.len(), 22);
         assert!(valid.iter().all(|(id, text)| id == &text.text));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn a_truncated_page_retries_smaller_groups_and_reports_its_own_block() -> Result<()> {
+        let mut lines = Vec::new();
+        for (p, count) in [(44, 1), (45, 22), (46, 1)] {
+            for b in 1..=count {
+                lines.push(Line {
+                    page: PageId(Uuid::from_u128(p)),
+                    layer: LayerId(Uuid::from_u128(p * 100 + b)),
+                    id: format!("P{p:03}-B{b:03}"),
+                    source: format!("Dialogue {p}/{b}"),
+                    language: icu_locale_core::langid!("en"),
+                    keep: false,
+                    saved: None,
+                });
+            }
+        }
+        let batch = Batch::new(&lines, &[], String::new());
+        for fail_last_block in [false, true] {
+            let mut calls = Vec::new();
+            let result =
+                batch
+                    .retry_rows(32768, |indices, _| {
+                        calls.push(indices.clone());
+                        let truncated =
+                            indices.len() > 11 || (fail_last_block && indices.contains(&22));
+                        let reply =
+                            (!truncated).then(|| {
+                                let rows: Vec<_> = indices.iter().rev().map(|&i| {
+                        let line = &lines[i];
+                        json!({"id":line.id,"source":line.source,"translation":line.id})
+                    }).collect();
+                                (json!({"texts":rows}).to_string(), Usage::default())
+                            });
+                        std::future::ready(Ok(reply))
+                    })
+                    .await;
+            assert_eq!(calls[2], (1..=22).collect::<Vec<_>>());
+            assert_eq!(calls[3], (1..=11).collect::<Vec<_>>());
+            assert_eq!(calls[4], (12..=22).collect::<Vec<_>>());
+            if fail_last_block {
+                let error = result.unwrap_err();
+                let failed = error.downcast_ref::<FailedPage>().unwrap();
+                assert_eq!(failed.page, PageId(Uuid::from_u128(45)));
+                assert_eq!(failed.block, "P045-B022");
+                assert!(format!("{error:#}").contains("32768"));
+                assert_eq!(calls.last().unwrap(), &[22]);
+            } else {
+                let (answers, _) = result?;
+                assert_eq!(calls.len(), 6);
+                assert_eq!(
+                    answers.iter().map(|a| &a.text).collect::<Vec<_>>(),
+                    lines.iter().map(|line| &line.id).collect::<Vec<_>>()
+                );
+            }
+        }
         Ok(())
     }
 

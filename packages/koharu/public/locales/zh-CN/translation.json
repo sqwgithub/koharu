@@ -507,6 +507,8 @@
         "instructions": "附加指示",
         "instructionsDescription": "可选，可用任何语言和形式填写，例如名字的写法或语气。Koharu 会按原样把它们附加在自己的系统提示词之后。",
         "reasoning": "推理",
+        "maxOutputTokens": "最大输出 token 数",
+        "maxOutputTokensDescription": "每次翻译请求可生成的 token 数，包含推理。留空使用默认值。",
         "reasoningDescription": "翻译时使用模型推理。",
         "targetLanguageDescription": "选择文本要翻译成的语言。",
         "vision": "视觉",
@@ -534,7 +536,18 @@
       "subscription": "订阅",
       "title": "提供商"
     },
+    "output": {
+      "description": "设置 PNG、CBZ 和 JPEG ZIP 的导出质量。PSD 按项目原尺寸导出。",
+      "images": "图像",
+      "scale": "输出尺寸",
+      "scaleDescription": "按比例缩小宽度和高度。100% 为原尺寸。",
+      "jpegQuality": "JPEG 质量",
+      "jpegDescription": "仅用于 JPEG ZIP。质量越高，文字边缘越清晰，文件也越大。",
+      "auto": "自动压缩",
+      "autoDescription": "PNG 使用更强的无损压缩。JPEG 超过 1 MiB 时会逐步降低质量，最低降至 60；手动设置低于 60 时沿用该值。"
+    },
     "tabs": {
+      "output": "输出",
       "appearance": "外观",
       "pipeline": "流水线",
       "providers": "提供商",

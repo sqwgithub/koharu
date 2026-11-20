@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   BookOpenText,
   Cpu,
+  FileOutput,
   KeyRound,
   Monitor,
   Moon,
@@ -16,6 +17,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { GlossaryManager } from '@/components/editor/GlossaryManager'
+import { OutputPreferences } from '@/components/preferences/OutputPreferences'
 import { PipelinePreferences } from '@/components/preferences/PipelinePreferences'
 import {
   PreferencePage,
@@ -46,6 +48,7 @@ const tabs = [
   ['pipeline', Cpu],
   ['providers', KeyRound],
   ['typesetting', Type],
+  ['output', FileOutput],
   ['glossary', BookOpenText],
 ] as const
 type Tab = (typeof tabs)[number][0]
@@ -160,6 +163,12 @@ export function SettingsPage() {
               <TypesettingPreferences
                 value={draft.renderer}
                 onChange={(renderer) => setDraft({ ...draft, renderer })}
+              />
+            )}
+            {tab === 'output' && draft && (
+              <OutputPreferences
+                value={draft.output}
+                onChange={(output) => setDraft({ ...draft, output })}
               />
             )}
             {tab === 'glossary' && draft && (

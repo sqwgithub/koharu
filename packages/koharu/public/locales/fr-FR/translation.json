@@ -507,6 +507,8 @@
         "instructions": "Instructions supplémentaires",
         "instructionsDescription": "Facultatives, dans n’importe quelle langue et sous n’importe quelle forme, comme l’orthographe d’un nom ou le ton. Koharu les ajoute telles quelles après sa propre instruction système.",
         "reasoning": "Raisonnement",
+        "maxOutputTokens": "Nombre maximal de jetons en sortie",
+        "maxOutputTokensDescription": "Limite par requête de traduction, raisonnement compris. Laissez ce champ vide pour utiliser la valeur par défaut.",
         "reasoningDescription": "Utiliser le raisonnement du modèle pendant la traduction.",
         "targetLanguageDescription": "Choisissez la langue dans laquelle traduire le texte.",
         "vision": "Vision",
@@ -534,7 +536,18 @@
       "subscription": "Abonnement",
       "title": "Fournisseurs"
     },
+    "output": {
+      "description": "Réglez la qualité des exports PNG, CBZ et ZIP de JPEG. Le PSD conserve les dimensions du projet.",
+      "images": "Images",
+      "scale": "Échelle de sortie",
+      "scaleDescription": "Réduit les deux dimensions proportionnellement. 100 % conserve la taille d’origine.",
+      "jpegQuality": "Qualité JPEG",
+      "jpegDescription": "Pour les ZIP de JPEG. Une qualité élevée préserve les contours du texte et augmente la taille des fichiers.",
+      "auto": "Compression automatique",
+      "autoDescription": "Renforce la compression sans perte des PNG. Pour les JPEG de plus de 1 Mio, réduit la qualité par paliers jusqu’à 60, ou conserve votre réglage s’il est inférieur."
+    },
     "tabs": {
+      "output": "Sortie",
       "appearance": "Apparence",
       "pipeline": "Pipeline",
       "providers": "Fournisseurs",

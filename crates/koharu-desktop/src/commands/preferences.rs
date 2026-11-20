@@ -14,13 +14,14 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{State, ipc::Channel};
 
-use super::Result;
+use super::{Result, export::OutputConfig};
 use crate::app::App;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Type)]
 pub struct Preferences {
     pub pipeline: PipelineConfig,
     pub renderer: RendererConfig,
+    pub output: OutputConfig,
     pub agent: AgentConfig,
     pub providers: Providers,
 }
@@ -29,6 +30,7 @@ fn preferences() -> anyhow::Result<Preferences> {
     Ok(Preferences {
         pipeline: koharu_config::get()?,
         renderer: koharu_config::get()?,
+        output: koharu_config::get()?,
         agent: koharu_config::get()?,
         providers: koharu_config::get()?,
     })
@@ -53,6 +55,7 @@ pub async fn save_preferences(
         let Preferences {
             pipeline,
             renderer,
+            output,
             agent,
             providers,
         } = preferences;
@@ -60,6 +63,7 @@ pub async fn save_preferences(
         koharu_config::update(|section: &mut RendererConfig| *section = renderer)?;
         koharu_config::update(|section: &mut AgentConfig| *section = agent)?;
         koharu_config::update(|section: &mut Providers| *section = providers)?;
+        koharu_config::update(|section: &mut OutputConfig| *section = output)?;
         let saved = self::preferences()?;
         app.pipeline.set_config(saved.pipeline.clone());
         app.renderer.set_config(saved.renderer.clone());

@@ -17,6 +17,7 @@ anyhow = { workspace = true }
 arboard = { workspace = true }
 cef = { workspace = true }
 dirs = { workspace = true }
+fast_image_resize = { workspace = true }
 fs-err = { workspace = true }
 futures = { workspace = true }
 globset = { workspace = true }

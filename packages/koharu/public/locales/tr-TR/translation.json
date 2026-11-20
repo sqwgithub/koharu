@@ -507,6 +507,8 @@
         "instructions": "Ek talimatlar",
         "instructionsDescription": "İsteğe bağlı, herhangi bir dilde ve biçimde; örneğin bir adın yazılışı ya da üslup. Koharu bunları kendi sistem isteminin ardından olduğu gibi ekler.",
         "reasoning": "Akıl yürütme",
+        "maxOutputTokens": "En fazla çıktı tokeni",
+        "maxOutputTokensDescription": "Akıl yürütme dahil, her çeviri isteğinde üretilebilecek token sayısı. Varsayılan değer için boş bırakın.",
         "reasoningDescription": "Çeviri sırasında model akıl yürütmesini kullanır.",
         "targetLanguageDescription": "Metnin çevrileceği dili seçin.",
         "vision": "Görsel",
@@ -534,7 +536,18 @@
       "subscription": "Abonelik",
       "title": "Sağlayıcılar"
     },
+    "output": {
+      "description": "PNG, CBZ ve JPEG ZIP dışa aktarma kalitesini ayarlayın. PSD, projenin özgün boyutlarını kullanır.",
+      "images": "Görüntüler",
+      "scale": "Çıktı ölçeği",
+      "scaleDescription": "Her iki boyutu orantılı olarak küçültür. %100 özgün boyutu korur.",
+      "jpegQuality": "JPEG kalitesi",
+      "jpegDescription": "JPEG ZIP için geçerlidir. Yüksek kalite metin kenarlarını korur ve dosya boyutunu artırır.",
+      "auto": "Otomatik sıkıştırma",
+      "autoDescription": "PNG için daha güçlü kayıpsız sıkıştırma kullanır. 1 MiB üzerindeki JPEG dosyalarının kalitesini adım adım 60’a kadar düşürür. Ayarınız daha düşükse onu korur."
+    },
     "tabs": {
+      "output": "Çıktı",
       "appearance": "Görünüm",
       "pipeline": "İşlem hattı",
       "providers": "Sağlayıcılar",

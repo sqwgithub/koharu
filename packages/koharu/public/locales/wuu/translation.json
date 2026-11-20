@@ -507,6 +507,8 @@
         "instructions": "额外指示",
         "instructionsDescription": "可以勿填，用啥个语言、啥个格式写侪可以，比方讲名字哪能写、语气哪能。Koharu 会照原样接勒自家个系统提示词后头。",
         "reasoning": "推理",
+        "maxOutputTokens": "最大输出 token 数",
+        "maxOutputTokensDescription": "每趟翻译请求最多好生成几化 token，推理也算。空关就用默认值。",
         "reasoningDescription": "翻译个辰光用模型推理。",
         "targetLanguageDescription": "选译文要用个目标语言。",
         "vision": "视觉",
@@ -534,7 +536,18 @@
       "subscription": "订阅",
       "title": "提供商"
     },
+    "output": {
+      "description": "设置 PNG、CBZ 搭 JPEG ZIP 个导出质量。PSD 照项目原尺寸导出。",
+      "images": "图像",
+      "scale": "输出尺寸",
+      "scaleDescription": "宽搭高照比例缩小。100% 是原尺寸。",
+      "jpegQuality": "JPEG 质量",
+      "jpegDescription": "用于 JPEG ZIP。质量越高，字边越清爽，文件也越大。",
+      "auto": "自动压缩",
+      "autoDescription": "PNG 用更强个无损压缩。JPEG 超过 1 MiB 辰光逐步降低质量，最低降到 60；手动设得更低就用手动值。"
+    },
     "tabs": {
+      "output": "输出",
       "appearance": "外观",
       "pipeline": "处理流程",
       "providers": "提供商",
