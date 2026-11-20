@@ -364,6 +364,8 @@
     "delete": "删除所选项",
     "discord": "Discord",
     "edit": "编辑",
+    "exportJpegZip": "ZIP（JPEG 图片）…",
+    "zipSuffix": "koharu机翻",
     "export": "导出项目",
     "feedback": "发送反馈",
     "file": "文件",

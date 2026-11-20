@@ -61,8 +61,8 @@ do: with the scene's own queries and edits, its undo and redo, and its history.
   projects.
 - **Import** makes a page of each image, of each image in a ZIP, CBZ, RAR, or
   CBR archive, and of each page of a PDF, in name order.
-- **Export** writes every page as PNG or PSD files in a folder, or as a CBZ of
-  PNGs.
+- **Export** writes every page as PNG or PSD files in a folder, as a CBZ of
+  PNGs, or as a ZIP of numbered JPEGs.
 
 ## 4. Around the project
 

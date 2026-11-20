@@ -364,6 +364,8 @@
     "delete": "Seçilenleri Sil",
     "discord": "Discord",
     "edit": "Düzenle",
+    "exportJpegZip": "ZIP (JPEG görüntüleri)…",
+    "zipSuffix": "koharu machine translation",
     "export": "Projeyi Dışa Aktar",
     "feedback": "Geri bildirim gönder",
     "file": "Dosya",

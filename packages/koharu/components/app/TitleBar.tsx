@@ -185,6 +185,14 @@ export function TitleBar() {
                       {format.toUpperCase()}…
                     </MenubarItem>
                   ))}
+                  <MenubarItem
+                    disabled={exporting}
+                    onClick={() =>
+                      exportProject({ zip: { suffix: t('menu.zipSuffix') } }, psdLabels)
+                    }
+                  >
+                    {t('menu.exportJpegZip')}
+                  </MenubarItem>
                 </MenubarSubContent>
               </MenubarSub>
               <MenubarSeparator />

@@ -261,7 +261,9 @@ export type Error = string;
 /**  What the agent panel shows while a run goes on. */
 export type Event = { type: "text"; delta: string } | { type: "reasoning"; delta: string } | { type: "tool_started"; tool: string; arguments: Value } | { type: "tool_finished"; tool: string; error: string | null };
 
-export type ExportFormat = "png" | "psd" | "cbz";
+export type ExportFormat = "png" | "psd" | "cbz" | { zip: {
+	suffix: string,
+} };
 
 export type ExternalImage = {
 	path: string,

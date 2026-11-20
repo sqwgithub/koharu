@@ -364,6 +364,8 @@
     "delete": "選択項目を削除",
     "discord": "Discord",
     "edit": "編集",
+    "exportJpegZip": "ZIP（JPEG 画像）…",
+    "zipSuffix": "koharu machine translation",
     "export": "プロジェクトを書き出す",
     "feedback": "フィードバックを送信",
     "file": "ファイル",

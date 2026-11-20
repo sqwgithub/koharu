@@ -364,6 +364,8 @@
     "delete": "Excluir seleção",
     "discord": "Discord",
     "edit": "Editar",
+    "exportJpegZip": "ZIP (imagens JPEG)…",
+    "zipSuffix": "koharu machine translation",
     "export": "Exportar projeto",
     "feedback": "Enviar feedback",
     "file": "Arquivo",

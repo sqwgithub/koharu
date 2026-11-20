@@ -364,6 +364,8 @@
     "delete": "حذف المحدّد",
     "discord": "Discord",
     "edit": "تحرير",
+    "exportJpegZip": "ZIP (صور JPEG)…",
+    "zipSuffix": "koharu machine translation",
     "export": "تصدير المشروع",
     "feedback": "إرسال ملاحظات",
     "file": "ملف",
