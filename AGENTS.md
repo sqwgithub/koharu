@@ -69,5 +69,6 @@ When starting a new session, read the [中文项目速览](.agents/README.md) fo
 
 ## Contributing
 
+- Use [sqwgithub/koharu](https://github.com/sqwgithub/koharu) as the default repository for pushes, issues, and pull requests. In this checkout, `fork` points to that repository and `origin` points to upstream `koharu-rs/koharu`.
 - Keep pull-request text short: problem, change, and verification.
 - Never add an AI assistant as a commit co-author, for example through a `Co-Authored-By` trailer.
