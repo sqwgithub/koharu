@@ -538,6 +538,7 @@ mod tests {
                 stroke: None,
             }],
             vertical: false,
+            upright_latin: false,
             align: Align::Start,
             line_height: 1.2,
             hyphenation: None,
@@ -729,6 +730,33 @@ mod tests {
             top(false),
             top(true)
         );
+        Ok(())
+    }
+
+    #[test]
+    fn upright_latin_keeps_each_grapheme_in_its_own_vertical_cell() -> Result<()> {
+        let families = crate::RendererConfig::default().font_families;
+        let text = koharu_scene::Text {
+            content: "中ffiA\u{301}文12".into(),
+            direction: koharu_scene::Direction::Vertical,
+            style: koharu_scene::TextStyle {
+                upright_latin: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let layout = crate::text::layout(&text, false, |style, characters| {
+            crate::fonts::chain(style, &families, characters, &text.language)
+        })?
+        .expect("a layout");
+        assert!(layout.runs.iter().all(|run| !run.sideways));
+        // ffi occupies three cells, A plus its accent one, and 12 shares one.
+        let cells = &layout.lines[0].clusters;
+        assert_eq!(cells.len(), 8);
+        for pair in cells[..6].windows(2) {
+            assert_eq!(pair[0].along.end, pair[1].along.start);
+        }
+        assert_eq!(cells[6].along, cells[7].along);
         Ok(())
     }
 

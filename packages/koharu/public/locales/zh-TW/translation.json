@@ -299,6 +299,9 @@
     "fontWeight": "字型粗細",
     "horizontal": "橫排",
     "increaseBorderWidth": "增加描邊寬度",
+    "latinOrientation": "英文方向",
+    "latinSideways": "順時針旋轉 90°",
+    "latinUpright": "逐字直立",
     "opacity": "不透明度",
     "selectPage": "選擇頁面以檢查其圖層。",
     "source": "原文",
@@ -358,6 +361,7 @@
     "unlocked": "未鎖定"
   },
   "menu": {
+    "projectLatinOrientation": "統一專案直排英文方向",
     "resizeDialogue": "更新專案對白的自動字級",
     "about": "關於",
     "closeProject": "關閉專案",

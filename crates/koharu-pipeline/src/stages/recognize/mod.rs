@@ -5,6 +5,9 @@
 //! the task holds.
 
 mod model;
+mod selection;
+
+pub(super) use selection::selection;
 
 use image::{DynamicImage, GrayImage, Rgb, RgbImage};
 use koharu_scene::{Content, Layer, LayerId, Op, Rect, Role};
@@ -42,32 +45,14 @@ pub(crate) async fn recognize(task: &Task, config: &PipelineConfig) -> anyhow::R
     }
     let (members, crops): (Vec<Member>, Vec<Vec<(LayerId, DynamicImage)>>) =
         read.into_iter().unzip();
-    let key = key(Stage::Recognize, config).expect("a recognizer is Koharu's");
-    let model = config.recognizer.model;
-    let (texts, language) = task
-        .inference(&members.iter().collect::<Vec<_>>(), move |models| {
-            let recognizer = models.get(&key, |device| model::load(model, device))?;
-            let counts: Vec<usize> = crops.iter().map(Vec::len).collect();
-            let (blocks, images): (Vec<LayerId>, Vec<DynamicImage>) =
-                crops.into_iter().flatten().unzip();
-            let _span = tracing::info_span!("ocr", crops = images.len()).entered();
-            let texts = recognizer.inference(&images)?;
-            anyhow::ensure!(
-                texts.len() == images.len(),
-                "{} texts for {} blocks",
-                texts.len(),
-                images.len()
-            );
-            let mut read = blocks.into_iter().zip(texts);
-            let texts: Vec<Vec<(LayerId, String)>> = counts
-                .into_iter()
-                .map(|count| read.by_ref().take(count).collect())
-                .collect();
-            Ok((texts, recognizer.language()))
-        })
-        .await?;
-    let name = model.to_string();
-    for (member, texts) in members.iter().zip(texts) {
+    let counts = crops.iter().map(Vec::len).collect::<Vec<_>>();
+    let (blocks, images): (Vec<_>, Vec<_>) = crops.into_iter().flatten().unzip();
+    let (texts, language) =
+        infer(task, config, &members.iter().collect::<Vec<_>>(), images).await?;
+    let mut results = blocks.into_iter().zip(texts);
+    let name = config.recognizer.model.to_string();
+    for (member, count) in members.iter().zip(counts) {
+        let texts = results.by_ref().take(count).collect::<Vec<_>>();
         let name = name.clone();
         member
             .apply(Stage::Recognize, move |project| {
@@ -87,6 +72,29 @@ pub(crate) async fn recognize(task: &Task, config: &PipelineConfig) -> anyhow::R
             .await?;
     }
     Ok(())
+}
+
+async fn infer(
+    task: &Task,
+    config: &PipelineConfig,
+    members: &[&Member],
+    images: Vec<DynamicImage>,
+) -> anyhow::Result<(Vec<String>, &'static str)> {
+    let key = key(Stage::Recognize, config).expect("a recognizer is Koharu's");
+    let model = config.recognizer.model;
+    task.inference(members, move |models| {
+        let recognizer = models.get(&key, |device| model::load(model, device))?;
+        let _span = tracing::info_span!("ocr", crops = images.len()).entered();
+        let texts = recognizer.inference(&images)?;
+        anyhow::ensure!(
+            texts.len() == images.len(),
+            "{} texts for {} crops",
+            texts.len(),
+            images.len()
+        );
+        Ok((texts, recognizer.language()))
+    })
+    .await
 }
 
 fn recognized(layer: &Layer, text: &str, language: &str, model: &str) -> Option<[Op; 2]> {

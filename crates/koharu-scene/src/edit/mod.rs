@@ -76,6 +76,10 @@ pub enum Op {
     },
     /// Recalculate legacy automatically assigned vertical Chinese dialogue sizes.
     ResizeDialogue,
+    /// Set Latin letter orientation in the project's unlocked vertical text layers and translations.
+    SetVerticalLatinOrientation {
+        upright: bool,
+    },
     /// Set the visibility of the sound-effect layers on one page, or every page.
     SetSfxVisibility {
         page: Option<Ref>,
@@ -437,6 +441,9 @@ impl Run<'_, '_> {
                 Ok(())
             }
             Op::ResizeDialogue => self.resize_dialogue(index),
+            Op::SetVerticalLatinOrientation { upright } => {
+                self.set_vertical_latin_orientation(index, *upright)
+            }
             Op::SetSfxVisibility { page, visible } => {
                 let pages = match page {
                     Some(page) => vec![self.page(page)?],

@@ -299,6 +299,9 @@
     "fontWeight": "Font weight",
     "horizontal": "Horizontal",
     "increaseBorderWidth": "Increase border width",
+    "latinOrientation": "Latin letters",
+    "latinSideways": "Rotate 90° clockwise",
+    "latinUpright": "Upright per letter",
     "opacity": "Opacity",
     "selectPage": "Select a page to inspect its layers.",
     "source": "Source text",
@@ -358,6 +361,7 @@
     "unlocked": "Unlocked"
   },
   "menu": {
+    "projectLatinOrientation": "Latin orientation in project vertical text",
     "resizeDialogue": "Update automatic dialogue sizes",
     "about": "About",
     "closeProject": "Close Project",

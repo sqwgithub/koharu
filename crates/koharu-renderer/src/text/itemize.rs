@@ -35,8 +35,8 @@ pub(super) enum Orientation {
     Upright,
     /// Turned a quarter clockwise, set as a horizontal line down the column.
     Sideways,
-    /// Two or three `!` and `?` side by side in one upright cell, as
-    /// Photoshop's tate-chu-yoko sets them.
+    /// Horizontal shaping inside one upright cell: a punctuation or digit
+    /// group, or a single Latin grapheme when upright lettering is selected.
     TateChuYoko,
 }
 
@@ -61,7 +61,7 @@ pub(super) fn itemize(styled: &Styled, levels: &[Level]) -> (Vec<Run>, Vec<char>
                 .into_iter()
                 .flat_map(|(part, group)| match group {
                     true => vec![(part, Orientation::TateChuYoko)],
-                    false => orientations(&styled.text, part, font_at),
+                    false => orientations(&styled.text, part, styled.upright_latin, font_at),
                 })
                 .collect(),
             false => vec![(piece, Orientation::Upright)],
@@ -225,15 +225,26 @@ fn script_runs(text: &str, range: Range<usize>) -> Vec<(Range<usize>, IcuScript)
 fn orientations<'a>(
     text: &str,
     range: Range<usize>,
+    upright_latin: bool,
     font_at: impl Fn(usize) -> Option<&'a Font>,
 ) -> Vec<(Range<usize>, Orientation)> {
     let orientation = CodePointMapData::<VerticalOrientation>::new();
+    let scripts = CodePointMapData::<IcuScript>::new();
     let part = &text[range.clone()];
     let boundaries: Vec<usize> = GraphemeClusterSegmenter::new().segment_str(part).collect();
     let mut parts: Vec<(Range<usize>, Orientation)> = Vec::new();
     for pair in boundaries.windows(2) {
         let grapheme = &part[pair[0]..pair[1]];
         let first = grapheme.chars().next().expect("a grapheme has a character");
+        if upright_latin && scripts.get(first) == IcuScript::Latin && first.is_alphabetic() {
+            // A separate horizontal cell keeps the letter's ordinary glyph
+            // and its combining marks together, even in fonts with rotated alternates.
+            parts.push((
+                range.start + pair[0]..range.start + pair[1],
+                Orientation::TateChuYoko,
+            ));
+            continue;
+        }
         let rotated = match orientation.get(first) {
             VerticalOrientation::Rotated => true,
             VerticalOrientation::TransformedRotated => {
@@ -347,6 +358,7 @@ mod tests {
                 stroke: None,
             }],
             vertical: false,
+            upright_latin: false,
             align: Align::Start,
             line_height: 1.2,
             hyphenation: None,
@@ -388,7 +400,7 @@ mod tests {
     #[test]
     fn vertical_text_turns_latin_and_digits_sideways() {
         let text = "東京Tokyo Tower、高さ333!";
-        let parts: Vec<(&str, Orientation)> = orientations(text, 0..text.len(), |_| None)
+        let parts: Vec<(&str, Orientation)> = orientations(text, 0..text.len(), false, |_| None)
             .into_iter()
             .map(|(range, orientation)| (&text[range], orientation))
             .collect();
@@ -405,7 +417,7 @@ mod tests {
         // An emoji keycap starts with a digit but shows as an emoji.
         let keycap = "1\u{fe0f}\u{20e3}";
         assert_eq!(
-            orientations(keycap, 0..keycap.len(), |_| None),
+            orientations(keycap, 0..keycap.len(), false, |_| None),
             [(0..keycap.len(), Orientation::Upright)]
         );
     }

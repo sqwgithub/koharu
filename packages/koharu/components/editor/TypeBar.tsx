@@ -171,6 +171,12 @@ export function TypeBar() {
   const stroke = chars.stroke ?? null
   const strokeEnabled = stroke !== null && stroke[3] > 0 && strokeWidth > 0
   const direction: Direction = lettering?.direction ?? 'horizontal'
+  const allVertical =
+    targets.length > 0 && targets.every((layer) => letteringOf(layer)?.direction === 'vertical')
+  const uprightLatin = style.upright_latin ?? false
+  const sharedLatin =
+    drafted?.upright_latin !== undefined ||
+    targets.every((layer) => (letteringOf(layer)?.style?.upright_latin ?? false) === uprightLatin)
   const align: Align = style.align ?? (direction === 'vertical' ? 'start' : 'center')
 
   // The bar sits by the selection as the canvas lays it out, a point text's lines and the text
@@ -338,6 +344,27 @@ export function TypeBar() {
           <span className='ml-2 opacity-60'>{t(`inspector.${direction}`)}</span>
         </TooltipContent>
       </Tooltip>
+      {allVertical && (
+        <DropdownMenu>
+          <DropdownMenuTrigger className='flex h-6 items-center gap-1 rounded-md border border-input bg-background px-1.5 text-[11px] hover:bg-muted'>
+            {t('inspector.latinOrientation')}
+            <ChevronDown className='size-3' />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='end' className='w-max min-w-40'>
+            <DropdownMenuRadioGroup
+              value={sharedLatin ? (uprightLatin ? 'upright' : 'sideways') : ''}
+              onValueChange={(value) => apply({ upright_latin: value === 'upright' })}
+            >
+              <DropdownMenuRadioItem value='sideways'>
+                {t('inspector.latinSideways')}
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value='upright'>
+                {t('inspector.latinUpright')}
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
       <Popover>
         <Tooltip>
           <TooltipTrigger

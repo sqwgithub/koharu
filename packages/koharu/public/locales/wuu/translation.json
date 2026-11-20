@@ -299,6 +299,9 @@
     "fontWeight": "字体粗细",
     "horizontal": "横排",
     "increaseBorderWidth": "拿描边调粗点",
+    "latinOrientation": "英文字母方向",
+    "latinSideways": "顺时针转 90°",
+    "latinUpright": "一个字母一格竖排",
     "opacity": "不透明度",
     "selectPage": "先选一页，再看箇页个图层。",
     "source": "原文",
@@ -358,6 +361,7 @@
     "unlocked": "呒没锁牢"
   },
   "menu": {
+    "projectLatinOrientation": "统一项目竖排英文方向",
     "resizeDialogue": "更新项目对白个自动字号",
     "about": "关于",
     "closeProject": "关闭项目",

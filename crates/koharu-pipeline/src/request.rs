@@ -33,8 +33,8 @@ pub enum Target {
     Pages(Vec<PageId>),
     /// Recognition, inpainting, or translation on blocks.
     Blocks(Vec<LayerId>),
-    /// Inpainting only: a new raster layer limited by a layer mask to the
-    /// area, as Photoshop's Generative Fill and Content-Aware Fill write one.
+    /// Recognition creates a source block from the selected scan pixels.
+    /// Inpainting creates a raster layer limited by the selection mask.
     /// Its prompt goes ahead of the inpainter section's; LaMa, which takes
     /// none, ignores it.
     Area {

@@ -299,6 +299,9 @@
     "fontWeight": "وزن الخط",
     "horizontal": "أفقي",
     "increaseBorderWidth": "زيادة عرض الحدود",
+    "latinOrientation": "اتجاه الحروف اللاتينية",
+    "latinSideways": "تدوير 90° باتجاه عقارب الساعة",
+    "latinUpright": "كل حرف قائم على حدة",
     "opacity": "العتامة",
     "selectPage": "اختر صفحة لعرض طبقاتها.",
     "source": "النص المصدر",
@@ -358,6 +361,7 @@
     "unlocked": "غير مقفل"
   },
   "menu": {
+    "projectLatinOrientation": "اتجاه الحروف اللاتينية في النص الرأسي للمشروع",
     "resizeDialogue": "تحديث حجم خط الحوار التلقائي",
     "about": "عن البرنامج",
     "closeProject": "إغلاق المشروع",

@@ -55,6 +55,26 @@ pub async fn fill(
     )?))
 }
 
+/// Reads the marked pixels of the scan into a source block.
+#[tauri::command]
+#[specta::specta]
+pub async fn recognize_selection(app: State<'_, Arc<App>>) -> Result<Option<RunId>> {
+    let Some((page, rect, pixels)) = app.screen.area().await? else {
+        return Ok(None);
+    };
+    let target = Target::Area {
+        page,
+        area: Area { rect, pixels },
+        prompt: None,
+    };
+    Ok(Some(app.process(
+        target,
+        BTreeSet::from([Stage::Recognize]),
+        false,
+        None,
+    )?))
+}
+
 /// Stops every run, running and queued; what they finished stays.
 #[tauri::command]
 #[specta::specta]

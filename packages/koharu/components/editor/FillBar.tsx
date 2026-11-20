@@ -1,6 +1,6 @@
 'use client'
 
-import { Sparkles, X } from 'lucide-react'
+import { ScanText, Sparkles, X } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -23,12 +23,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@koharu/ui/components/t
 /** The tools whose area the bar follows. */
 const TOOLS: CanvasTool[] = ['marquee', 'lasso']
 
-/** Generative Fill for the area the marquee and the lasso marked, in a bar below it, as
- * Photoshop's Contextual Task Bar offers it below a selection: the model it draws with, what to
- * draw there, Generate, and Deselect. The model is the fill's own, saved as
- * `[pipeline.inpainter] fill`, apart from the one that cleans pages; Generate fills the area with
- * it after the prompt, or with the inpainter's own prompt when it's empty. LaMa takes no prompt,
- * so with it the bar has none. */
+/** Area actions live below the selection. Generative Fill has its own model preference. */
 export function FillBar() {
   const { t } = useTranslation()
   const area = useKoharuStore((state) => state.area)
@@ -43,7 +38,19 @@ export function FillBar() {
   const prompted = model !== 'lama'
   const generate = () => dispatch(commands.fill, (prompted && prompt.trim()) || null, model)
   return (
-    <ContextBar bounds={area} aria-label={t('fill.title')}>
+    <ContextBar bounds={area} aria-label={t(`tools.${tool}`)}>
+      {tool === 'marquee' && (
+        <Button
+          type='button'
+          variant='secondary'
+          size='sm'
+          className='h-7 text-[11px]'
+          onClick={() => dispatch(commands.recognizeSelection)}
+        >
+          <ScanText />
+          {t('phase.recognize')}
+        </Button>
+      )}
       <Select
         value={model}
         items={inpainters}

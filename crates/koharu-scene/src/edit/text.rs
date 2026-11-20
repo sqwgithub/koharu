@@ -6,6 +6,38 @@ use super::Run;
 use crate::{Content, Error, Layer, Ref, Result, RichText, Span, Text, text};
 
 impl Run<'_, '_> {
+    pub(super) fn set_vertical_latin_orientation(
+        &mut self,
+        op: usize,
+        upright: bool,
+    ) -> Result<()> {
+        let style = serde_json::json!({ "style": { "upright_latin": upright } });
+        let translation = serde_json::json!({ "translation": &style });
+        let mut changes = Vec::new();
+        for page in self.project.pages() {
+            for layer in crate::project::depth_first(&page.layers) {
+                let (text, patch) = match &layer.content {
+                    Content::Text(text) => (text.as_ref(), &style),
+                    Content::Block(block) => match &block.translation {
+                        Some(text) => (text, &translation),
+                        None => continue,
+                    },
+                    _ => continue,
+                };
+                if text.direction == crate::Direction::Vertical
+                    && text.style.upright_latin != upright
+                    && self.project.locked_at(layer.id).is_none()
+                {
+                    changes.push((layer.id, patch));
+                }
+            }
+        }
+        for (layer, patch) in changes {
+            self.update_layer(op, &layer.into(), patch)?;
+        }
+        Ok(())
+    }
+
     /// A text layer's text, or a block's translation, added empty when the
     /// block has none.
     fn text_mut<'l>(&self, op: usize, layer: &'l mut Layer) -> Result<&'l mut Text> {

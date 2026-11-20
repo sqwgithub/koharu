@@ -61,6 +61,9 @@ pub struct TextStyle {
     /// A paragraph key: a multiple of each line's largest size.
     #[serde(default)]
     pub line_height: Option<f64>,
+    /// Set each Latin letter upright in its own cell in vertical text.
+    #[serde(default)]
+    pub upright_latin: bool,
 }
 
 /// Text as spans in order, each with its marks, so no mark can fall outside the

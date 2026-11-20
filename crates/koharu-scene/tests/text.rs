@@ -30,6 +30,70 @@ fn marked(text: &RichText) -> Vec<(&str, Option<u16>)> {
 }
 
 #[test]
+fn project_latin_orientation_updates_only_unlocked_vertical_lettering() -> koharu_scene::Result<()>
+{
+    let (_dir, mut session, first) = session();
+    let second = page(&mut session);
+    let vertical = json!({"kind":"text", "direction":"vertical", "content":"中文ABC"});
+    let standalone = add(&mut session, first, None, vertical.clone());
+    let block = add(
+        &mut session,
+        second,
+        None,
+        json!({"kind":"block",
+            "source":{"direction":"horizontal"}, "translation":{"direction":"vertical","content":"字A"}
+        }),
+    );
+    add(
+        &mut session,
+        first,
+        None,
+        json!({"kind":"block",
+            "source":{"direction":"vertical"}, "translation":{"direction":"horizontal","content":"A"}
+        }),
+    );
+    add(
+        &mut session,
+        first,
+        None,
+        json!({"kind":"block","source":{"direction":"vertical"}}),
+    );
+    add(
+        &mut session,
+        second,
+        None,
+        json!({"kind":"text","content":"横排ABC"}),
+    );
+    let group = add(&mut session, second, None, json!({"kind":"group"}));
+    add(&mut session, second, Some(group), vertical);
+    apply(
+        &mut session,
+        vec![json!({"op":"update_layer","layer":group,"patch":{"locked":true}})],
+    )?;
+
+    let original = session.project();
+    session.apply(edit(vec![Op::SetVerticalLatinOrientation {
+        upright: true,
+    }]))?;
+    let updated = session.project();
+    session.undo()?;
+    assert_eq!(session.project(), original);
+    apply(
+        &mut session,
+        vec![
+            json!({"op":"update_layer","layer":standalone,"patch":{"style":{"upright_latin":true}}}),
+            json!({"op":"update_layer","layer":block,"patch":{"translation":{"style":{"upright_latin":true}}}}),
+        ],
+    )?;
+    assert_eq!(session.project(), updated);
+    session.apply(edit(vec![Op::SetVerticalLatinOrientation {
+        upright: false,
+    }]))?;
+    assert_eq!(session.project(), original);
+    Ok(())
+}
+
+#[test]
 fn set_text_keeps_marks_on_the_characters_that_stayed() {
     let (_dir, mut session, page) = session();
     let layer = add(

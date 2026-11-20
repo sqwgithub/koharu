@@ -252,6 +252,31 @@ export function TitleBar() {
               >
                 {t('menu.resizeDialogue')}
               </MenubarItem>
+              <MenubarSub>
+                <MenubarSubTrigger disabled={!pages.length} className='min-h-8 px-2 py-1 text-xs'>
+                  {t('menu.projectLatinOrientation')}
+                </MenubarSubTrigger>
+                <MenubarSubContent className='w-max min-w-40 p-1'>
+                  {(['latinSideways', 'latinUpright'] as const).map((choice) => (
+                    <MenubarItem
+                      key={choice}
+                      onClick={() =>
+                        dispatch(commands.edit, {
+                          label: `${t('menu.projectLatinOrientation')} · ${t(`inspector.${choice}`)}`,
+                          ops: [
+                            {
+                              op: 'set_vertical_latin_orientation',
+                              upright: choice === 'latinUpright',
+                            },
+                          ],
+                        })
+                      }
+                    >
+                      {t(`inspector.${choice}`)}
+                    </MenubarItem>
+                  ))}
+                </MenubarSubContent>
+              </MenubarSub>
               <MenubarItem
                 disabled={!project || !pages.some((p) => !p.excluded)}
                 onClick={() => setInkOpen(true)}

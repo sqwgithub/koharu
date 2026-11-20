@@ -306,6 +306,7 @@ mod tests {
                 stroke: None,
             }],
             vertical: false,
+            upright_latin: false,
             align: Align::Start,
             line_height: 1.2,
             hyphenation: None,

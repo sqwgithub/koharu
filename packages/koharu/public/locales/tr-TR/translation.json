@@ -299,6 +299,9 @@
     "fontWeight": "Yazı tipi kalınlığı",
     "horizontal": "Yatay",
     "increaseBorderWidth": "Kenarlık genişliğini artır",
+    "latinOrientation": "Latin harfleri",
+    "latinSideways": "Saat yönünde 90° döndür",
+    "latinUpright": "Her harfi dik göster",
     "opacity": "Opaklık",
     "selectPage": "Katmanlarını incelemek için bir sayfa seçin.",
     "source": "Kaynak metin",
@@ -358,6 +361,7 @@
     "unlocked": "Kilitsiz"
   },
   "menu": {
+    "projectLatinOrientation": "Projedeki dikey metinlerde Latin harflerinin yönü",
     "resizeDialogue": "Diyalogların otomatik yazı boyutlarını güncelle",
     "about": "Hakkında",
     "closeProject": "Projeyi Kapat",

@@ -299,6 +299,9 @@
     "fontWeight": "Peso da fonte",
     "horizontal": "Horizontal",
     "increaseBorderWidth": "Aumentar largura do contorno",
+    "latinOrientation": "Letras latinas",
+    "latinSideways": "Girar 90° no sentido horário",
+    "latinUpright": "Uma letra em pé por célula",
     "opacity": "Opacidade",
     "selectPage": "Selecione uma página para inspecionar suas camadas.",
     "source": "Texto original",
@@ -358,6 +361,7 @@
     "unlocked": "Desbloqueada"
   },
   "menu": {
+    "projectLatinOrientation": "Orientação das letras latinas no texto vertical do projeto",
     "resizeDialogue": "Atualizar o tamanho automático dos diálogos",
     "about": "Sobre",
     "closeProject": "Fechar projeto",

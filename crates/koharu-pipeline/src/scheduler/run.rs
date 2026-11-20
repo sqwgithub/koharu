@@ -14,9 +14,7 @@ use petgraph::stable_graph::{NodeIndex, StableDiGraph};
 use tokio_util::sync::CancellationToken;
 
 use super::Mode;
-use crate::{
-    Error, PipelineConfig, Result, RunId, Stage, Target, resume, stages::inpaint::AreaWork,
-};
+use crate::{Error, PipelineConfig, Result, RunId, Stage, Target, resume, stages::AreaWork};
 
 pub(crate) struct Run {
     pub(super) id: RunId,
@@ -186,8 +184,10 @@ impl Plan {
                 }
             }
             Target::Area { page, area, prompt } => {
-                if stages.iter().ne([Stage::Inpaint].iter()) {
-                    return Err(Error::invalid("an area takes inpainting only"));
+                if stages.len() != 1
+                    || !matches!(stages.first(), Some(Stage::Recognize | Stage::Inpaint))
+                {
+                    return Err(Error::invalid("an area takes recognition or inpainting"));
                 }
                 if project.page(*page)?.excluded {
                     return Ok(pages(Vec::new()));
@@ -377,6 +377,15 @@ mod tests {
         };
         assert!(Plan::new(&project, &area, &stages(&[Stage::Translate])).is_err());
         assert!(Plan::new(&project, &area, &stages(&[Stage::Inpaint])).is_ok());
+        assert!(Plan::new(&project, &area, &stages(&[Stage::Recognize])).is_ok());
+        assert!(
+            Plan::new(
+                &project,
+                &area,
+                &stages(&[Stage::Recognize, Stage::Inpaint])
+            )
+            .is_err()
+        );
         Ok(())
     }
 

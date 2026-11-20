@@ -299,6 +299,9 @@
     "fontWeight": "フォントの太さ",
     "horizontal": "横書き",
     "increaseBorderWidth": "縁取り幅を拡大",
+    "latinOrientation": "欧文の向き",
+    "latinSideways": "時計回りに90°回転",
+    "latinUpright": "1文字ずつ正立",
     "opacity": "不透明度",
     "selectPage": "ページを選択してレイヤーを確認します。",
     "source": "原文",
@@ -358,6 +361,7 @@
     "unlocked": "ロックなし"
   },
   "menu": {
+    "projectLatinOrientation": "プロジェクトの縦書き欧文の向き",
     "resizeDialogue": "プロジェクトの台詞の自動文字サイズを更新",
     "about": "Koharuについて",
     "closeProject": "プロジェクトを閉じる",

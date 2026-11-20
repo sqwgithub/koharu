@@ -299,6 +299,9 @@
     "fontWeight": "Graisse",
     "horizontal": "Horizontal",
     "increaseBorderWidth": "Augmenter l’épaisseur du contour",
+    "latinOrientation": "Lettres latines",
+    "latinSideways": "Pivoter de 90° vers la droite",
+    "latinUpright": "Redresser chaque lettre",
     "opacity": "Opacité",
     "selectPage": "Sélectionnez une page pour inspecter ses calques.",
     "source": "Texte source",
@@ -358,6 +361,7 @@
     "unlocked": "Déverrouillé"
   },
   "menu": {
+    "projectLatinOrientation": "Orientation des lettres latines du texte vertical du projet",
     "resizeDialogue": "Actualiser la taille automatique des dialogues",
     "about": "À propos",
     "closeProject": "Fermer le projet",

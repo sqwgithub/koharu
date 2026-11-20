@@ -563,6 +563,8 @@ export type Op =
 { op: "set_background"; page: Ref; background: Background | null } | { op: "set_page_options"; page: Ref; excluded: boolean } | 
 /**  Recalculate legacy automatically assigned vertical Chinese dialogue sizes. */
 { op: "resize_dialogue" } | 
+/**  Set Latin letter orientation in the project's unlocked vertical text layers and translations. */
+{ op: "set_vertical_latin_orientation"; upright: boolean } | 
 /**  Set the visibility of the sound-effect layers on one page, or every page. */
 { op: "set_sfx_visibility"; page: Ref | null; visible: boolean } | { op: "mark_page_detected"; page: Ref } | { op: "set_glossary_input"; input: Hash } | 
 /**  Move a page to `index`, counted after the page is taken out. */
@@ -885,8 +887,8 @@ export type Target =
 /**  Recognition, inpainting, or translation on blocks. */
 ({ blocks: LayerId[] }) & { area?: never; pages?: never } | 
 /**
- *  Inpainting only: a new raster layer limited by a layer mask to the
- *  area, as Photoshop's Generative Fill and Content-Aware Fill write one.
+ *  Recognition creates a source block from the selected scan pixels.
+ *  Inpainting creates a raster layer limited by the selection mask.
  *  Its prompt goes ahead of the inpainter section's; LaMa, which takes
  *  none, ignores it.
  */
@@ -942,6 +944,8 @@ export type TextStyle = {
 	align?: Align | null,
 	/**  A paragraph key: a multiple of each line's largest size. */
 	line_height?: number | null,
+	/**  Set each Latin letter upright in its own cell in vertical text. */
+	upright_latin?: boolean,
 };
 
 export type TextSuggestion = {
@@ -1138,6 +1142,8 @@ setZoom: (zoom: number) => invoke<null>("set_zoom", { zoom }, { headers: headers
 select: (layers: LayerId[]) => invoke<null>("select", { layers }, { headers: headers() }),
 /** Fills the area the marquee and the lasso marked with `model` after `prompt`, or the inpainter's own prompt when there's none, as Photoshop's Generative Fill does with the model its bar shows; `None` while no area is marked. The model is this run's only, in the settings' place. */
 fill: (prompt: string | null, model: Inpainter) => invoke<RunId | null>("fill", { prompt, model }, { headers: headers() }),
+/** Reads the marked pixels of the scan into a source block. */
+recognizeSelection: () => invoke<RunId | null>("recognize_selection", {  }, { headers: headers() }),
 /** Drops the area the marquee and the lasso marked, as Photoshop's Deselect does. */
 deselect: () => invoke<null>("deselect", {  }, { headers: headers() }),
 }

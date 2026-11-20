@@ -14,6 +14,7 @@ pub(super) struct Styled {
     /// The text's non-empty spans, which cover it in order.
     pub spans: Vec<Span>,
     pub vertical: bool,
+    pub upright_latin: bool,
     pub align: Align,
     /// A multiple of each line's largest size.
     pub line_height: f32,
@@ -69,6 +70,7 @@ impl Styled {
             text: plain,
             spans,
             vertical: text.direction == Direction::Vertical,
+            upright_latin: text.style.upright_latin,
             align: text.style.align.unwrap_or_default(),
             line_height: text.style.line_height.unwrap_or(1.2) as f32,
             // By the language's two-letter code.

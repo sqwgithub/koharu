@@ -191,11 +191,16 @@ impl Task {
     }
 }
 
+pub(crate) struct AreaWork {
+    pub(crate) area: crate::Area,
+    pub(crate) prompt: Option<String>,
+}
+
 /// What a stage needs besides its pages: the run's settings, its painted
 /// area, and for a translation, its project's conversation.
 pub(crate) struct Inputs {
     pub(crate) config: Arc<PipelineConfig>,
-    pub(crate) area: Option<Arc<inpaint::AreaWork>>,
+    pub(crate) area: Option<Arc<AreaWork>>,
     pub(crate) glossary_pages: Arc<BTreeSet<PageId>>,
     pub(crate) conversation: Option<OwnedMutexGuard<translate::Conversation>>,
 }
@@ -245,7 +250,10 @@ pub(crate) async fn run(mut task: Task, inputs: Inputs) -> Result<(), (PageId, S
     let first_page = task.members[0].page;
     let result = match stage {
         Stage::Detect => detect::detect(&task, config).await,
-        Stage::Recognize => recognize::recognize(&task, config).await,
+        Stage::Recognize => match inputs.area {
+            Some(area) => recognize::selection(&task, config, area).await,
+            None => recognize::recognize(&task, config).await,
+        },
         Stage::Glossary => glossary::analyze(&task, config, inputs.glossary_pages).await,
         Stage::Inpaint => inpaint::inpaint(&task, config, inputs.area).await,
         Stage::Translate => {
